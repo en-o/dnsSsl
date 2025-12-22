@@ -961,6 +961,9 @@ function enableStep2NextButton() {
     if (errorNotice) {
         errorNotice.remove();
     }
+
+    // 恢复所有交互操作
+    enableStep2AllInteractions();
 }
 
 function disableStep2NextButton(message = '⏳ 正在获取验证数据...') {
@@ -1078,6 +1081,40 @@ function disableStep2AllInteractions() {
     });
 
     console.log('[Step2] 所有交互操作已禁用，仅保留"上一步"按钮');
+}
+
+// 恢复步骤2的所有交互操作
+function enableStep2AllInteractions() {
+    console.log('[Step2] 恢复所有交互操作');
+
+    // 恢复验证方式选择（单选按钮）
+    const radioButtons = document.querySelectorAll('input[name="verification-method"]');
+    radioButtons.forEach(radio => {
+        radio.disabled = false;
+        // 恢复视觉样式
+        if (radio.parentElement && radio.parentElement.parentElement) {
+            radio.parentElement.parentElement.style.opacity = '';
+            radio.parentElement.parentElement.style.pointerEvents = '';
+        }
+    });
+
+    // 移除遮罩层
+    const detailsContainer = document.getElementById('verification-details');
+    if (detailsContainer) {
+        const overlay = detailsContainer.querySelector('.error-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
+    }
+
+    // 恢复验证选项卡片的点击
+    const verificationOptions = document.querySelectorAll('.verification-option');
+    verificationOptions.forEach(option => {
+        option.style.opacity = '';
+        option.style.pointerEvents = '';
+    });
+
+    console.log('[Step2] 所有交互操作已恢复');
 }
 
 // ==================== 平滑滚动 Polyfill ====================
