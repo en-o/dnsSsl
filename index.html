@@ -1,0 +1,236 @@
+---
+layout: default
+title: 首页
+description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
+---
+
+<div class="wizard-container">
+    <!-- 步骤指示器 -->
+    {% include step-indicator.html %}
+
+    <!-- 步骤 1: 输入域名 -->
+    <div class="step-content" id="step-1" style="display: block;">
+        <div class="step-card">
+            <h2>步骤 1：输入您的域名</h2>
+            <p class="step-description">请输入需要申请 SSL 证书的域名。支持单域名和通配符域名（如 *.example.com）。</p>
+
+            <div class="form-group">
+                <label for="domain-input">域名：</label>
+                <input type="text" id="domain-input" class="form-input" placeholder="example.com" autocomplete="off">
+                <p class="input-hint">支持格式：example.com、www.example.com、*.example.com</p>
+                <p class="error-message" id="domain-error" style="display: none;"></p>
+            </div>
+
+            <div class="form-group">
+                <label for="acme-provider">ACME CA 提供商：</label>
+                <select id="acme-provider" class="form-select">
+                    <option value="letsencrypt" selected>Let's Encrypt（推荐）</option>
+                    <option value="zerossl">ZeroSSL</option>
+                    <option value="buypass">Buypass</option>
+                    <option value="google">Google Trust Services</option>
+                </select>
+                <p class="input-hint">Let's Encrypt 是全球最流行的免费 SSL 证书服务</p>
+            </div>
+
+            <div class="ca-info-box">
+                <h4>关于 Let's Encrypt</h4>
+                <ul>
+                    <li>完全免费，自动化颁发</li>
+                    <li>受所有主流浏览器信任</li>
+                    <li>证书有效期 90 天，支持自动续期</li>
+                    <li>支持单域名、多域名和通配符证书</li>
+                </ul>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="nextStep(1)">下一步</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 步骤 2: 选择验证方式 -->
+    <div class="step-content" id="step-2" style="display: none;">
+        <div class="step-card">
+            <h2>步骤 2：选择域名验证方式</h2>
+            <p class="step-description">请选择以下任一验证方式来证明您对域名 <strong><span class="domain-display"></span></strong> 的所有权。</p>
+
+            <div class="verification-options">
+                <div class="verification-option" data-method="webserver">
+                    <input type="radio" id="method-webserver" name="verification-method" value="webserver" checked>
+                    <label for="method-webserver">
+                        <div class="option-header">
+                            <svg class="option-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+                                <path d="M3 9H21" stroke="currentColor" stroke-width="2"/>
+                            </svg>
+                            <span class="option-title">Web 服务器验证（HTTP-01）</span>
+                        </div>
+                        <p class="option-description">在您的 Web 服务器上放置验证文件</p>
+                        <p class="option-suitable">适用于：有公网可访问的 Web 服务器</p>
+                    </label>
+                </div>
+
+                <div class="verification-option" data-method="dns">
+                    <input type="radio" id="method-dns" name="verification-method" value="dns">
+                    <label for="method-dns">
+                        <div class="option-header">
+                            <svg class="option-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                                <path d="M12 2C12 2 17 7 17 12C17 17 12 22 12 22" stroke="currentColor" stroke-width="2"/>
+                                <path d="M2 12H22" stroke="currentColor" stroke-width="2"/>
+                            </svg>
+                            <span class="option-title">DNS 解析验证（DNS-01）</span>
+                        </div>
+                        <p class="option-description">在域名 DNS 中添加 TXT 记录</p>
+                        <p class="option-suitable">适用于：无法配置 Web 服务器或需要通配符证书</p>
+                    </label>
+                </div>
+            </div>
+
+            <div class="verification-details" id="verification-details">
+                <!-- 验证方式详细说明将动态加载到这里 -->
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="prevStep(2)">上一步</button>
+                <button class="btn btn-primary" onclick="nextStep(2)">下一步</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 步骤 3: 完成验证 -->
+    <div class="step-content" id="step-3" style="display: none;">
+        <div class="step-card">
+            <h2>步骤 3：完成验证</h2>
+            <p class="step-description">请确认您已按照上一步的指引完成了域名验证配置。</p>
+
+            <div class="verification-checklist">
+                <h3>验证清单：</h3>
+                <div class="checklist-item">
+                    <input type="checkbox" id="check-1">
+                    <label for="check-1">我已按照指引完成配置</label>
+                </div>
+                <div class="checklist-item">
+                    <input type="checkbox" id="check-2">
+                    <label for="check-2">我已验证配置是否生效（如访问验证 URL 或查询 DNS 记录）</label>
+                </div>
+                <div class="checklist-item">
+                    <input type="checkbox" id="check-3">
+                    <label for="check-3">确认验证文件/DNS 记录可正常访问</label>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 16V12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="12" cy="8" r="1" fill="currentColor"/>
+                </svg>
+                <div class="info-content">
+                    <strong>提示：</strong>
+                    <p>本工具是静态引导页面，实际的证书申请需要在您的服务器上使用 ACME 客户端完成，推荐工具：</p>
+                    <ul>
+                        <li><strong>Certbot</strong>（官方推荐）：<a href="https://certbot.eff.org/" target="_blank">https://certbot.eff.org/</a></li>
+                        <li><strong>acme.sh</strong>（纯 Shell 实现）：<a href="https://acme.sh/" target="_blank">https://acme.sh/</a></li>
+                        <li><strong>Caddy</strong>（自动 HTTPS）：<a href="https://caddyserver.com/" target="_blank">https://caddyserver.com/</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="prevStep(3)">上一步</button>
+                <button class="btn btn-primary" onclick="nextStep(3)" id="verify-button">验证完成，继续</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 步骤 4: 选择证书格式 -->
+    <div class="step-content" id="step-4" style="display: none;">
+        <div class="step-card">
+            <h2>步骤 4：选择证书格式</h2>
+            <p class="step-description">根据您的服务器类型，选择对应的证书格式。</p>
+
+            <div class="cert-format-options">
+                {% for format in site.data.cert_formats.formats %}
+                <div class="cert-format-option" data-format="{{ format.id }}">
+                    <input type="radio" id="format-{{ format.id }}" name="cert-format" value="{{ format.id }}" {% if format.id == 'nginx' %}checked{% endif %}>
+                    <label for="format-{{ format.id }}">
+                        <div class="format-header">
+                            <span class="format-name">{{ format.name }}</span>
+                        </div>
+                        <p class="format-description">{{ format.description }}</p>
+                        <div class="format-files">
+                            <strong>文件列表：</strong>
+                            <ul>
+                                {% for file in format.files %}
+                                <li><code>{{ file.name }}</code> - {{ file.description }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="prevStep(4)">上一步</button>
+                <button class="btn btn-primary" onclick="nextStep(4)">下一步</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 步骤 5: 下载证书和安装指南 -->
+    <div class="step-content" id="step-5" style="display: none;">
+        <div class="step-card">
+            <h2>步骤 5：证书安装指南</h2>
+            <p class="step-description">恭喜！以下是您选择的 <strong><span id="selected-format-name"></span></strong> 格式的安装指南。</p>
+
+            <div class="success-box">
+                <svg class="success-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <h3>证书申请流程已完成！</h3>
+                <p>域名：<strong><span class="domain-display"></span></strong></p>
+                <p>验证方式：<strong><span id="selected-method-name"></span></strong></p>
+                <p>证书格式：<strong><span id="selected-format-display"></span></strong></p>
+            </div>
+
+            <div class="installation-guide" id="installation-guide">
+                <!-- 安装指南将动态加载到这里 -->
+            </div>
+
+            <div class="info-box">
+                <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 16V12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="12" cy="8" r="1" fill="currentColor"/>
+                </svg>
+                <div class="info-content">
+                    <strong>证书续期提醒：</strong>
+                    <p>Let's Encrypt 证书有效期为 90 天，建议在到期前 30 天进行续期。使用 Certbot 或 acme.sh 可以自动续期。</p>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="prevStep(5)">上一步</button>
+                <button class="btn btn-primary" onclick="restartWizard()">重新申请</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 隐藏的验证方式模板 -->
+<div style="display: none;">
+    <div id="webserver-template">
+        {% include verification-webserver.html %}
+    </div>
+    <div id="dns-template">
+        {% include verification-dns.html %}
+    </div>
+</div>
+
+<!-- 隐藏的证书安装指南数据 -->
+<script id="cert-formats-data" type="application/json">
+{{ site.data.cert_formats | jsonify }}
+</script>

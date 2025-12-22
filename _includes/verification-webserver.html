@@ -1,0 +1,86 @@
+<!-- Web 服务器验证方式说明 -->
+<div class="verification-method" id="webserver-method">
+    <h3>
+        <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+            <path d="M3 9H21" stroke="currentColor" stroke-width="2"/>
+            <circle cx="6.5" cy="6" r="0.5" fill="currentColor"/>
+            <circle cx="8.5" cy="6" r="0.5" fill="currentColor"/>
+            <circle cx="10.5" cy="6" r="0.5" fill="currentColor"/>
+        </svg>
+        方式 A：Web 服务器验证（HTTP-01）
+    </h3>
+
+    <div class="method-description">
+        <p>通过在您的 Web 服务器上放置验证文件来证明域名所有权。适用于有公网可访问 Web 服务器的场景。</p>
+    </div>
+
+    <div class="method-steps">
+        <h4>操作步骤：</h4>
+        <ol>
+            <li>
+                <strong>创建验证文件目录：</strong>
+                <pre><code>mkdir -p /var/www/html/.well-known/acme-challenge</code></pre>
+            </li>
+            <li>
+                <strong>创建验证文件：</strong>
+                <p>文件名：<code id="challenge-filename">xxxxxxxxxxxx</code></p>
+                <p>文件内容：<code id="challenge-content">xxxxxxxxxxxx.yyyyyyyyyyyy</code></p>
+                <pre><code>echo "验证内容" > /var/www/html/.well-known/acme-challenge/验证文件名</code></pre>
+            </li>
+            <li>
+                <strong>配置 Nginx（示例）：</strong>
+                <pre><code>server {
+    listen 80;
+    server_name <span class="domain-placeholder">example.com</span>;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        try_files $uri =404;
+    }
+}</code></pre>
+            </li>
+            <li>
+                <strong>配置 Apache（示例）：</strong>
+                <pre><code>&lt;VirtualHost *:80&gt;
+    ServerName <span class="domain-placeholder">example.com</span>
+    DocumentRoot /var/www/html
+
+    &lt;Directory "/var/www/html/.well-known/acme-challenge"&gt;
+        Require all granted
+    &lt;/Directory&gt;
+&lt;/VirtualHost&gt;</code></pre>
+            </li>
+            <li>
+                <strong>配置 Tomcat（示例）：</strong>
+                <p>将 <code>.well-known</code> 目录放在 webapp 根目录下，确保可以通过 HTTP 访问。</p>
+            </li>
+            <li>
+                <strong>重启 Web 服务器：</strong>
+                <pre><code># Nginx
+sudo systemctl reload nginx
+
+# Apache
+sudo systemctl reload apache2
+
+# Tomcat
+# 重启 Tomcat 服务</code></pre>
+            </li>
+            <li>
+                <strong>验证访问：</strong>
+                <p>确保可以通过浏览器或 curl 访问：</p>
+                <pre><code>curl http://<span class="domain-placeholder">example.com</span>/.well-known/acme-challenge/验证文件名</code></pre>
+            </li>
+        </ol>
+    </div>
+
+    <div class="method-notes">
+        <h4>注意事项：</h4>
+        <ul>
+            <li>确保域名已正确解析到服务器 IP</li>
+            <li>确保防火墙开放 80 端口</li>
+            <li>验证文件需要通过 HTTP（非 HTTPS）访问</li>
+            <li>验证文件无需扩展名</li>
+        </ul>
+    </div>
+</div>

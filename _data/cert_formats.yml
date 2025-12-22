@@ -1,0 +1,341 @@
+# 证书格式配置数据
+formats:
+  - id: nginx
+    name: Nginx
+    description: 适用于 Nginx Web 服务器
+    files:
+      - name: fullchain.pem
+        description: 完整证书链（包含域名证书和中间证书）
+      - name: privkey.pem
+        description: 私钥文件
+    installation_guide: |
+      ## Nginx 安装指南
+
+      ### 1. 上传证书文件
+      ```bash
+      # 创建证书目录
+      sudo mkdir -p /etc/nginx/ssl/example.com
+
+      # 上传证书文件（使用 scp 或其他方式）
+      sudo cp fullchain.pem /etc/nginx/ssl/example.com/
+      sudo cp privkey.pem /etc/nginx/ssl/example.com/
+
+      # 设置权限
+      sudo chmod 600 /etc/nginx/ssl/example.com/privkey.pem
+      sudo chmod 644 /etc/nginx/ssl/example.com/fullchain.pem
+      ```
+
+      ### 2. 配置 Nginx
+      编辑站点配置文件（如 `/etc/nginx/sites-available/example.com`）：
+      ```nginx
+      server {
+          listen 443 ssl http2;
+          server_name example.com www.example.com;
+
+          ssl_certificate /etc/nginx/ssl/example.com/fullchain.pem;
+          ssl_certificate_key /etc/nginx/ssl/example.com/privkey.pem;
+
+          # SSL 优化配置
+          ssl_protocols TLSv1.2 TLSv1.3;
+          ssl_ciphers HIGH:!aNULL:!MD5;
+          ssl_prefer_server_ciphers on;
+          ssl_session_cache shared:SSL:10m;
+          ssl_session_timeout 10m;
+
+          # 其他配置...
+      }
+
+      # HTTP 自动跳转 HTTPS
+      server {
+          listen 80;
+          server_name example.com www.example.com;
+          return 301 https://$server_name$request_uri;
+      }
+      ```
+
+      ### 3. 验证配置并重启
+      ```bash
+      # 检查配置语法
+      sudo nginx -t
+
+      # 重启 Nginx
+      sudo systemctl reload nginx
+      ```
+
+  - id: apache
+    name: Apache
+    description: 适用于 Apache HTTP Server
+    files:
+      - name: cert.crt
+        description: 域名证书
+      - name: chain.crt
+        description: 中间证书链
+      - name: privkey.key
+        description: 私钥文件
+    installation_guide: |
+      ## Apache 安装指南
+
+      ### 1. 上传证书文件
+      ```bash
+      # 创建证书目录
+      sudo mkdir -p /etc/apache2/ssl/example.com
+
+      # 上传证书文件
+      sudo cp cert.crt /etc/apache2/ssl/example.com/
+      sudo cp chain.crt /etc/apache2/ssl/example.com/
+      sudo cp privkey.key /etc/apache2/ssl/example.com/
+
+      # 设置权限
+      sudo chmod 600 /etc/apache2/ssl/example.com/privkey.key
+      sudo chmod 644 /etc/apache2/ssl/example.com/*.crt
+      ```
+
+      ### 2. 启用 SSL 模块
+      ```bash
+      sudo a2enmod ssl
+      sudo a2enmod headers
+      ```
+
+      ### 3. 配置虚拟主机
+      编辑站点配置（如 `/etc/apache2/sites-available/example.com-ssl.conf`）：
+      ```apache
+      <VirtualHost *:443>
+          ServerName example.com
+          ServerAlias www.example.com
+
+          SSLEngine on
+          SSLCertificateFile /etc/apache2/ssl/example.com/cert.crt
+          SSLCertificateKeyFile /etc/apache2/ssl/example.com/privkey.key
+          SSLCertificateChainFile /etc/apache2/ssl/example.com/chain.crt
+
+          # SSL 协议配置
+          SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
+          SSLCipherSuite HIGH:!aNULL:!MD5
+
+          # 其他配置...
+      </VirtualHost>
+
+      # HTTP 跳转 HTTPS
+      <VirtualHost *:80>
+          ServerName example.com
+          ServerAlias www.example.com
+          Redirect permanent / https://example.com/
+      </VirtualHost>
+      ```
+
+      ### 4. 重启 Apache
+      ```bash
+      # 启用站点
+      sudo a2ensite example.com-ssl
+
+      # 检查配置
+      sudo apachectl configtest
+
+      # 重启服务
+      sudo systemctl reload apache2
+      ```
+
+  - id: tomcat
+    name: Tomcat
+    description: 适用于 Apache Tomcat 应用服务器
+    files:
+      - name: keystore.pfx
+        description: PKCS#12 格式的密钥库文件
+    installation_guide: |
+      ## Tomcat 安装指南
+
+      ### 1. 上传证书文件
+      ```bash
+      # 创建证书目录
+      sudo mkdir -p /opt/tomcat/ssl
+
+      # 上传 keystore.pfx 文件
+      sudo cp keystore.pfx /opt/tomcat/ssl/
+
+      # 设置权限
+      sudo chmod 600 /opt/tomcat/ssl/keystore.pfx
+      sudo chown tomcat:tomcat /opt/tomcat/ssl/keystore.pfx
+      ```
+
+      ### 2. 配置 server.xml
+      编辑 `/opt/tomcat/conf/server.xml`，添加或修改 HTTPS Connector：
+      ```xml
+      <Connector port="8443" protocol="org.apache.coyote.http11.Http11NioProtocol"
+                 maxThreads="150" SSLEnabled="true">
+          <SSLHostConfig>
+              <Certificate certificateKeystoreFile="/opt/tomcat/ssl/keystore.pfx"
+                          certificateKeystorePassword="您的密码"
+                          certificateKeystoreType="PKCS12" />
+          </SSLHostConfig>
+      </Connector>
+      ```
+
+      ### 3. 重启 Tomcat
+      ```bash
+      sudo systemctl restart tomcat
+      ```
+
+      ### 4. 验证
+      访问 `https://example.com:8443` 验证证书是否生效。
+
+  - id: iis
+    name: IIS
+    description: 适用于 Windows IIS 服务器
+    files:
+      - name: certificate.pfx
+        description: PKCS#12 格式证书文件（包含私钥）
+    installation_guide: |
+      ## IIS 安装指南
+
+      ### 1. 导入证书
+      1. 双击 `certificate.pfx` 文件
+      2. 选择"本地计算机"，点击"下一步"
+      3. 确认文件路径，点击"下一步"
+      4. 输入证书密码（如有），勾选"标志此密钥为可导出的"
+      5. 选择"自动选择证书存储区"
+      6. 点击"完成"
+
+      ### 2. 在 IIS 中绑定证书
+      1. 打开 IIS 管理器
+      2. 选择您的网站
+      3. 点击右侧"绑定..."
+      4. 点击"添加"
+      5. 类型选择"https"
+      6. 端口填写"443"
+      7. 主机名填写您的域名（如 example.com）
+      8. SSL 证书选择刚才导入的证书
+      9. 点击"确定"
+
+      ### 3. 配置 HTTP 跳转 HTTPS
+      1. 安装 URL Rewrite 模块
+      2. 在站点根目录创建或编辑 `web.config`：
+      ```xml
+      <configuration>
+          <system.webServer>
+              <rewrite>
+                  <rules>
+                      <rule name="HTTP to HTTPS redirect" stopProcessing="true">
+                          <match url="(.*)" />
+                          <conditions>
+                              <add input="{HTTPS}" pattern="off" ignoreCase="true" />
+                          </conditions>
+                          <action type="Redirect" url="https://{HTTP_HOST}/{R:1}" redirectType="Permanent" />
+                      </rule>
+                  </rules>
+              </rewrite>
+          </system.webServer>
+      </configuration>
+      ```
+
+  - id: jks
+    name: JKS
+    description: 适用于 Java 应用（如 Spring Boot）
+    files:
+      - name: keystore.jks
+        description: Java KeyStore 格式密钥库
+    installation_guide: |
+      ## Java KeyStore 使用指南
+
+      ### 1. Spring Boot 配置
+      将 `keystore.jks` 放到 `src/main/resources` 目录，或指定的证书目录。
+
+      编辑 `application.properties` 或 `application.yml`：
+
+      **application.properties:**
+      ```properties
+      server.port=8443
+      server.ssl.enabled=true
+      server.ssl.key-store=classpath:keystore.jks
+      server.ssl.key-store-password=您的密码
+      server.ssl.key-store-type=JKS
+      server.ssl.key-alias=tomcat
+      ```
+
+      **application.yml:**
+      ```yaml
+      server:
+        port: 8443
+        ssl:
+          enabled: true
+          key-store: classpath:keystore.jks
+          key-store-password: 您的密码
+          key-store-type: JKS
+          key-alias: tomcat
+      ```
+
+      ### 2. 启动应用
+      ```bash
+      java -jar your-application.jar
+      ```
+
+      ### 3. 验证
+      访问 `https://localhost:8443` 验证 HTTPS 是否生效。
+
+  - id: other
+    name: 其他 / PEM 格式
+    description: 通用 PEM 格式，适用于大多数场景
+    files:
+      - name: fullchain.pem
+        description: 完整证书链
+      - name: privkey.pem
+        description: 私钥文件
+      - name: cert.pem
+        description: 域名证书（单独）
+      - name: chain.pem
+        description: 中间证书链（单独）
+    installation_guide: |
+      ## PEM 格式证书说明
+
+      PEM（Privacy Enhanced Mail）是最通用的证书格式，Base64 编码的文本文件。
+
+      ### 文件说明
+      - **cert.pem**: 您的域名证书
+      - **chain.pem**: 中间证书链（CA 证书）
+      - **fullchain.pem**: cert.pem + chain.pem 的组合
+      - **privkey.pem**: 私钥文件（请妥善保管）
+
+      ### 格式转换
+
+      #### PEM 转 PKCS#12/PFX（用于 Tomcat、IIS）
+      ```bash
+      openssl pkcs12 -export -out certificate.pfx \
+        -inkey privkey.pem \
+        -in fullchain.pem \
+        -name "example.com"
+      ```
+
+      #### PEM 转 JKS（用于 Java）
+      ```bash
+      # 先转为 PKCS#12
+      openssl pkcs12 -export -out keystore.p12 \
+        -inkey privkey.pem \
+        -in fullchain.pem \
+        -name tomcat
+
+      # 再转为 JKS
+      keytool -importkeystore \
+        -srckeystore keystore.p12 \
+        -srcstoretype PKCS12 \
+        -destkeystore keystore.jks \
+        -deststoretype JKS
+      ```
+
+      #### PKCS#12 转 PEM
+      ```bash
+      # 提取证书
+      openssl pkcs12 -in certificate.pfx -clcerts -nokeys -out cert.pem
+
+      # 提取私钥
+      openssl pkcs12 -in certificate.pfx -nocerts -nodes -out privkey.pem
+      ```
+
+      ### 验证证书
+      ```bash
+      # 查看证书信息
+      openssl x509 -in cert.pem -text -noout
+
+      # 验证证书和私钥是否匹配
+      openssl x509 -noout -modulus -in cert.pem | openssl md5
+      openssl rsa -noout -modulus -in privkey.pem | openssl md5
+      # 两个 MD5 值应该相同
+      ```

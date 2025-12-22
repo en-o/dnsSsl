@@ -1,0 +1,91 @@
+<!-- DNS 验证方式说明 -->
+<div class="verification-method" id="dns-method">
+    <h3>
+        <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+            <path d="M12 2C12 2 17 7 17 12C17 17 12 22 12 22" stroke="currentColor" stroke-width="2"/>
+            <path d="M12 2C12 2 7 7 7 12C7 17 12 22 12 22" stroke="currentColor" stroke-width="2"/>
+            <path d="M2 12H22" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        方式 B：DNS 解析验证（DNS-01）
+    </h3>
+
+    <div class="method-description">
+        <p>通过在域名的 DNS 解析中添加指定的 TXT 记录来证明域名所有权。适用于无法配置 Web 服务器或需要通配符证书的场景。</p>
+    </div>
+
+    <div class="method-steps">
+        <h4>操作步骤：</h4>
+        <ol>
+            <li>
+                <strong>登录域名管理控制台：</strong>
+                <p>访问您的域名注册商或 DNS 服务商控制台（如阿里云、腾讯云、CloudFlare 等）</p>
+            </li>
+            <li>
+                <strong>添加 TXT 记录：</strong>
+                <div class="dns-record-info">
+                    <table>
+                        <tr>
+                            <td><strong>记录类型：</strong></td>
+                            <td><code>TXT</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>主机记录：</strong></td>
+                            <td><code id="dns-host">_acme-challenge</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>记录值：</strong></td>
+                            <td><code id="dns-value">xxxxxxxxxxxxxxxxxxxxxxxxxxxx</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>TTL：</strong></td>
+                            <td><code>600</code>（10分钟，或更短）</td>
+                        </tr>
+                    </table>
+                </div>
+            </li>
+            <li>
+                <strong>完整记录示例：</strong>
+                <pre><code>_acme-challenge.<span class="domain-placeholder">example.com</span>  IN  TXT  "验证字符串"</code></pre>
+            </li>
+            <li>
+                <strong>等待 DNS 解析生效：</strong>
+                <p>通常需要 1-10 分钟，具体时间取决于您的 DNS 服务商。</p>
+            </li>
+            <li>
+                <strong>验证 DNS 记录：</strong>
+                <p>使用以下命令验证 TXT 记录是否生效：</p>
+                <pre><code># Linux / macOS
+dig _acme-challenge.<span class="domain-placeholder">example.com</span> TXT
+
+# Windows
+nslookup -type=TXT _acme-challenge.<span class="domain-placeholder">example.com</span>
+
+# 在线查询
+# 访问 https://dnschecker.org/</code></pre>
+            </li>
+        </ol>
+    </div>
+
+    <div class="method-notes">
+        <h4>注意事项：</h4>
+        <ul>
+            <li>DNS 验证支持通配符证书（如 *.example.com）</li>
+            <li>确保 TXT 记录的值用双引号包裹</li>
+            <li>不同 DNS 服务商的解析生效时间不同</li>
+            <li>验证完成后可删除 TXT 记录，不影响证书使用</li>
+            <li>如果域名使用了 CDN，注意 DNS 缓存问题</li>
+        </ul>
+    </div>
+
+    <div class="dns-provider-guides">
+        <h4>常见 DNS 服务商操作指引：</h4>
+        <div class="provider-links">
+            <a href="https://help.aliyun.com/document_detail/29725.html" target="_blank" rel="noopener">阿里云</a>
+            <a href="https://cloud.tencent.com/document/product/302/3468" target="_blank" rel="noopener">腾讯云</a>
+            <a href="https://support.cloudflare.com/hc/zh-cn/articles/360019093151" target="_blank" rel="noopener">CloudFlare</a>
+            <a href="https://support.huaweicloud.com/usermanual-dns/dns_usermanual_0601.html" target="_blank" rel="noopener">华为云</a>
+            <a href="https://www.dnspod.cn/docs/records.html" target="_blank" rel="noopener">DNSPod</a>
+        </div>
+    </div>
+</div>
