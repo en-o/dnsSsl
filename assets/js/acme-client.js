@@ -187,8 +187,14 @@ class AcmeClient {
             protected_header.jwk = this.publicKeyToJWK(this.accountKeyPair.publicKey);
         }
 
-        // Base64url 编码
-        const protectedB64 = this.base64url(JSON.stringify(protected_header));
+        // ACME 规范要求 JSON 对象的键按字母顺序排列
+        // 为了确保 JWK 格式正确，我们需要重新排序
+        const orderedHeader = this.orderObject(protected_header);
+
+        console.log('[ACME] JWS Protected Header:', orderedHeader);
+
+        // Base64url 编码（使用排序后的对象）
+        const protectedB64 = this.base64url(JSON.stringify(orderedHeader));
         const payloadB64 = payload ? this.base64url(JSON.stringify(payload)) : '';
 
         // 签名
@@ -198,11 +204,34 @@ class AcmeClient {
         const signature = this.accountKeyPair.privateKey.sign(md);
         const signatureB64 = this.base64url(signature);
 
-        return {
+        const jws = {
             protected: protectedB64,
             payload: payloadB64,
             signature: signatureB64
         };
+
+        console.log('[ACME] JWS 签名完成');
+        return jws;
+    }
+
+    /**
+     * 递归地对对象的键进行排序（ACME 规范要求）
+     */
+    orderObject(obj) {
+        if (typeof obj !== 'object' || obj === null) {
+            return obj;
+        }
+
+        if (Array.isArray(obj)) {
+            return obj.map(item => this.orderObject(item));
+        }
+
+        const ordered = {};
+        Object.keys(obj).sort().forEach(key => {
+            ordered[key] = this.orderObject(obj[key]);
+        });
+
+        return ordered;
     }
 
     /**
