@@ -82,14 +82,14 @@ function resetVerificationStatus() {
     document.getElementById('verify-continue-button').style.display = 'none';
 }
 
-// 开始验证（并申请真实证书）
+// 开始验证配置（不申请证书）
 async function startVerification() {
     const startButton = document.getElementById('verify-start-button');
     startButton.disabled = true;
     startButton.textContent = '验证中...';
 
     // 显示验证中状态
-    showVerificationStatus('loading', '正在申请证书...', '请稍候，系统正在通过 ACME 协议申请证书');
+    showVerificationStatus('loading', '正在验证...', '请稍候，系统正在检查您的配置');
 
     // 显示详情区域
     const detailsBox = document.getElementById('verification-details-box');
@@ -100,24 +100,19 @@ async function startVerification() {
     logContainer.innerHTML = '';
 
     try {
-        // 步骤1：启动 ACME 证书申请流程
-        addLog('info', '========================================');
-        addLog('info', '开始申请 SSL 证书...');
-        addLog('info', '========================================');
-        addLog('info', '域名: ' + AppState.domain);
-        addLog('info', 'CA提供商: ' + AppState.acmeProvider);
-        addLog('info', '验证方式: ' + (AppState.verificationMethod === 'webserver' ? 'HTTP-01' : 'DNS-01'));
-        addLog('info', '');
-
-        // 调用 ACME 客户端申请证书
-        await requestRealCertificateInline();
-
+        // 直接验证配置（使用步骤2中生成的模拟数据）
+        if (AppState.verificationMethod === 'webserver') {
+            await verifyWebServer();
+        } else if (AppState.verificationMethod === 'dns') {
+            await verifyDNS();
+        }
     } catch (error) {
-        addLog('error', '证书申请失败：' + error.message);
-        showVerificationStatus('error', '申请失败', error.message || '证书申请过程中发生错误');
-        startButton.disabled = false;
-        startButton.textContent = '重新申请';
+        addLog('error', '验证过程出错：' + error.message);
+        showVerificationStatus('error', '验证失败', error.message || '验证过程中发生错误');
     }
+
+    startButton.disabled = false;
+    startButton.textContent = '重新验证';
 }
 
 // Web 服务器验证
@@ -468,34 +463,28 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// ==================== ACME 证书申请集成 ====================
+// ==================== 获取 ACME 挑战数据（仅用于验证配置）====================
 /**
- * 内联的 ACME 证书申请流程（整合到验证步骤中）
+ * 仅获取 ACME 挑战数据，不申请证书
+ * 用于步骤3：让用户验证配置是否正确
  */
-async function requestRealCertificateInline() {
+async function fetchAcmeChallenge() {
     const domain = AppState.domain;
     const caProvider = AppState.acmeProvider;
     const verificationMethod = AppState.verificationMethod;
 
     try {
-        // 步骤 1: 初始化 ACME 客户端
-        addLog('info', '正在初始化 ACME 客户端...');
+        // 初始化 ACME 客户端
         const acmeClient = new AcmeClient(caProvider);
         await acmeClient.initialize();
-        addLog('success', '✓ ACME 客户端初始化成功 (CA: ' + caProvider + ')');
 
-        // 步骤 2: 创建或获取账户
-        addLog('info', '正在创建/获取 ACME 账户...');
-        await acmeClient.createAccount(''); // 可以提供邮箱
-        addLog('success', '✓ ACME 账户准备完成');
+        // 创建或获取账户
+        await acmeClient.createAccount('');
 
-        // 步骤 3: 创建订单
-        addLog('info', '正在为域名 ' + domain + ' 创建订单...');
-        const { order, orderUrl } = await acmeClient.createOrder(domain);
-        addLog('success', '✓ 订单创建成功');
+        // 创建订单
+        const { order } = await acmeClient.createOrder(domain);
 
-        // 步骤 4: 获取授权挑战
-        addLog('info', '正在获取授权挑战...');
+        // 获取授权挑战
         const authUrl = order.authorizations[0];
         const authorization = await acmeClient.getAuthorization(authUrl);
 
@@ -511,20 +500,14 @@ async function requestRealCertificateInline() {
             }
 
             challengeData = acmeClient.getHttp01ChallengeData(challenge);
-            addLog('success', '✓ HTTP-01 挑战数据获取成功');
-            addLog('info', '验证文件名: ' + challengeData.filename);
-            const shortContent = challengeData.content.substring(0, 30) + '...';
-            addLog('info', '验证内容: ' + shortContent);
-            addLog('info', '');
-            addLog('warning', '⚠️  请确保验证文件已正确配置：');
-            addLog('info', '文件路径: /.well-known/acme-challenge/' + challengeData.filename);
-            addLog('info', '文件内容: ' + challengeData.content);
-            addLog('info', '访问URL: http://' + domain + '/.well-known/acme-challenge/' + challengeData.filename);
-            addLog('info', '');
 
             // 更新 AppState
             AppState.challengeFilename = challengeData.filename;
             AppState.challengeContent = challengeData.content;
+            AppState.acmeClient = acmeClient; // 保存客户端，用于后续申请
+
+            addLog('info', '验证文件名: ' + challengeData.filename);
+            addLog('info', '验证URL: http://' + domain + '/.well-known/acme-challenge/' + challengeData.filename);
 
         } else if (verificationMethod === 'dns') {
             // DNS-01 挑战
@@ -534,19 +517,14 @@ async function requestRealCertificateInline() {
             }
 
             challengeData = acmeClient.getDns01ChallengeData(challenge);
-            addLog('success', '✓ DNS-01 挑战数据获取成功');
-            addLog('info', 'DNS 主机记录: ' + challengeData.host);
-            addLog('info', 'TXT 记录值: ' + challengeData.value);
-            addLog('info', '');
-            addLog('warning', '⚠️  请确保 DNS 记录已正确添加：');
-            addLog('info', '记录类型: TXT');
-            addLog('info', '主机记录: ' + challengeData.host);
-            addLog('info', '记录值: ' + challengeData.value);
-            addLog('info', '完整域名: ' + challengeData.host + '.' + domain);
-            addLog('info', '');
 
             // 更新 AppState
             AppState.dnsValue = challengeData.value;
+            AppState.acmeClient = acmeClient; // 保存客户端，用于后续申请
+
+            addLog('info', 'DNS 主机记录: ' + challengeData.host);
+            addLog('info', 'TXT 记录值: ' + challengeData.value);
+            addLog('info', '完整域名: ' + challengeData.host + '.' + domain);
 
             // 更新 UI 中的 DNS 记录值
             const dnsInstructionBox = document.getElementById('dns-instruction-box');
@@ -559,54 +537,115 @@ async function requestRealCertificateInline() {
             }
         }
 
-        // 步骤 5: 验证配置
-        addLog('info', '正在验证配置...');
-        addLog('info', '');
+    } catch (error) {
+        console.error('[ACME] 获取挑战数据失败:', error);
+        throw new Error('获取验证数据失败: ' + error.message);
+    }
+}
+
+// ==================== ACME 证书申请（在步骤5执行）====================
+/**
+ * 在步骤5申请真实证书
+ * 此时配置已经验证通过，用户已选择证书格式
+ */
+async function requestRealCertificateInStep5() {
+    const domain = AppState.domain;
+    const caProvider = AppState.acmeProvider;
+    const verificationMethod = AppState.verificationMethod;
+
+    // 简单的日志函数（输出到步骤5的日志区域）
+    function log(message) {
+        const logEl = document.getElementById('cert-request-log');
+        if (logEl) {
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        console.log('[ACME]', message);
+    }
+
+    try {
+        log('开始申请 SSL 证书...');
+        log(`域名: ${domain}`);
+        log(`CA提供商: ${caProvider}`);
+        log(`验证方式: ${verificationMethod === 'webserver' ? 'HTTP-01' : 'DNS-01'}`);
+        log('');
+
+        // 步骤 1: 初始化 ACME 客户端
+        log('正在初始化 ACME 客户端...');
+        const acmeClient = new AcmeClient(caProvider);
+        await acmeClient.initialize();
+        log('✓ ACME 客户端初始化成功');
+
+        // 步骤 2: 创建或获取账户
+        log('正在创建/获取 ACME 账户...');
+        await acmeClient.createAccount('');
+        log('✓ ACME 账户准备完成');
+
+        // 步骤 3: 创建订单
+        log(`正在为域名 ${domain} 创建订单...`);
+        const { order, orderUrl } = await acmeClient.createOrder(domain);
+        log('✓ 订单创建成功');
+
+        // 步骤 4: 获取授权挑战
+        log('正在获取授权挑战...');
+        const authUrl = order.authorizations[0];
+        const authorization = await acmeClient.getAuthorization(authUrl);
+
+        // 根据验证方式选择挑战
+        let challenge;
 
         if (verificationMethod === 'webserver') {
-            await verifyWebServer();
+            challenge = authorization.challenges.find(c => c.type === 'http-01');
+            if (!challenge) {
+                throw new Error('服务器不支持 HTTP-01 验证');
+            }
+            log('✓ HTTP-01 挑战数据获取成功');
+
         } else if (verificationMethod === 'dns') {
-            await verifyDNS();
+            challenge = authorization.challenges.find(c => c.type === 'dns-01');
+            if (!challenge) {
+                throw new Error('服务器不支持 DNS-01 验证');
+            }
+            log('✓ DNS-01 挑战数据获取成功');
         }
 
-        // 步骤 6: 触发挑战验证
-        addLog('info', '');
-        addLog('info', '正在触发挑战验证...');
+        // 步骤 5: 触发挑战验证
+        log('正在触发挑战验证...');
         await acmeClient.triggerChallenge(challenge.url);
-        addLog('success', '✓ 验证请求已发送到 CA 服务器');
+        log('✓ 验证请求已发送到 CA 服务器');
 
-        // 步骤 7: 轮询挑战状态
-        addLog('info', '正在等待 CA 服务器验证（最多等待90秒）...');
+        // 步骤 6: 轮询挑战状态
+        log('正在等待 CA 服务器验证（最多等待90秒）...');
         await acmeClient.pollChallengeStatus(challenge.url);
-        addLog('success', '✓ 域名验证成功！');
-        addLog('info', '');
+        log('✓ 域名验证成功！');
 
-        // 步骤 8: 生成域名密钥对
-        addLog('info', '正在生成域名密钥对（4096位RSA）...');
+        // 步骤 7: 生成域名密钥对
+        log('正在生成域名密钥对（4096位RSA）...');
         const domainKeyPair = acmeClient.generateDomainKeyPair();
-        addLog('success', '✓ 域名密钥对生成完成');
+        log('✓ 域名密钥对生成完成');
 
-        // 步骤 9: 生成 CSR
-        addLog('info', '正在生成证书签名请求（CSR）...');
+        // 步骤 8: 生成 CSR
+        log('正在生成证书签名请求（CSR）...');
         const csr = acmeClient.generateCSR(domain, domainKeyPair);
-        addLog('success', '✓ CSR 生成完成');
+        log('✓ CSR 生成完成');
 
-        // 步骤 10: 提交订单
-        addLog('info', '正在提交订单到 CA 服务器...');
+        // 步骤 9: 提交订单
+        log('正在提交订单到 CA 服务器...');
         await acmeClient.finalizeOrder(order.finalize, csr);
-        addLog('success', '✓ 订单已提交');
+        log('✓ 订单已提交');
 
-        // 步骤 11: 等待证书签发
-        addLog('info', '正在等待 CA 服务器签发证书（最多等待90秒）...');
+        // 步骤 10: 等待证书签发
+        log('正在等待 CA 服务器签发证书（最多等待90秒）...');
         const completedOrder = await acmeClient.pollOrderStatus(orderUrl);
-        addLog('success', '✓ 证书已签发！');
+        log('✓ 证书已签发！');
 
-        // 步骤 12: 下载证书
-        addLog('info', '正在下载证书...');
+        // 步骤 11: 下载证书
+        log('正在下载证书...');
         const certificatePem = await acmeClient.downloadCertificate(completedOrder.certificate);
         const privateKeyPem = acmeClient.exportPrivateKeyPem(domainKeyPair);
-        addLog('success', '✓ 证书下载完成！');
-        addLog('info', '');
+        log('✓ 证书下载完成！');
+        log('');
 
         // 保存证书到 AppState
         AppState.realCertificate = {
@@ -617,48 +656,22 @@ async function requestRealCertificateInline() {
             issuedAt: new Date().toISOString()
         };
 
-        addLog('success', '========================================');
-        addLog('success', '🎉 证书申请成功！');
-        addLog('success', '========================================');
-        addLog('info', '证书信息:');
-        addLog('info', '• 域名: ' + domain);
-        addLog('info', '• CA 提供商: ' + caProvider);
-        addLog('info', '• 签发时间: ' + new Date().toLocaleString('zh-CN'));
-        addLog('info', '• 证书有效期: 90天');
-        addLog('info', '');
-        addLog('info', '✅ 现在可以前往下一步下载证书文件');
-
-        // 显示成功状态
-        showVerificationStatus('success', '证书申请成功！', '真实的 SSL 证书已经从 ' + caProvider + ' 获取成功');
-
-        // 显示继续按钮
-        showContinueButton();
-
-        // 启用继续按钮
-        const continueButton = document.getElementById('verify-continue-button');
-        if (continueButton) {
-            continueButton.disabled = false;
-        }
+        log('========================================');
+        log('🎉 证书申请成功！');
+        log('========================================');
+        log(`域名: ${domain}`);
+        log(`CA 提供商: ${caProvider}`);
+        log(`签发时间: ${new Date().toLocaleString('zh-CN')}`);
+        log('证书有效期: 90天');
+        log('');
+        log('正在生成证书下载文件...');
 
     } catch (error) {
         console.error('[ACME] 证书申请失败:', error);
-        addLog('error', '');
-        addLog('error', '✗ 证书申请失败: ' + error.message);
-        addLog('info', '');
-        addLog('warning', '请检查：');
-        if (verificationMethod === 'webserver') {
-            addLog('info', '1. 验证文件是否正确放置在服务器');
-            addLog('info', '2. 文件内容是否与显示的完全一致');
-            addLog('info', '3. 验证 URL 是否可以通过 HTTP 访问');
-            addLog('info', '4. 服务器防火墙是否允许 80 端口访问');
-        } else {
-            addLog('info', '1. DNS TXT 记录是否正确添加');
-            addLog('info', '2. DNS 记录是否已经生效（可能需要等待几分钟）');
-            addLog('info', '3. 记录值是否与显示的完全一致');
-            addLog('info', '4. 主机记录是否正确（_acme-challenge）');
-        }
-
+        log('');
+        log('✗ 证书申请失败: ' + error.message);
         throw error;
     }
 }
+
 

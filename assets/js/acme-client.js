@@ -117,11 +117,20 @@ class AcmeClient {
      * 将公钥转换为 JWK 格式
      */
     publicKeyToJWK(publicKey) {
-        // 将 BigInteger 转换为字节数组，然后转换为字节字符串
-        const nBytes = publicKey.n.toByteArray();
-        const eBytes = publicKey.e.toByteArray();
+        // 将 BigInteger 转换为字节数组
+        let nBytes = publicKey.n.toByteArray();
+        let eBytes = publicKey.e.toByteArray();
 
-        // 转换为字节字符串
+        // 移除前导零（如果有符号位）
+        // RSA 的 BigInteger 可能在正数前添加 0x00 作为符号位
+        if (nBytes[0] === 0 && nBytes.length > 1) {
+            nBytes = nBytes.slice(1);
+        }
+        if (eBytes[0] === 0 && eBytes.length > 1) {
+            eBytes = eBytes.slice(1);
+        }
+
+        // 转换为字节字符串（用于 base64 编码）
         let nByteString = '';
         for (let i = 0; i < nBytes.length; i++) {
             nByteString += String.fromCharCode(nBytes[i] & 0xff);
@@ -132,6 +141,7 @@ class AcmeClient {
             eByteString += String.fromCharCode(eBytes[i] & 0xff);
         }
 
+        // Base64 编码并转换为 Base64url
         const n = forge.util.encode64(nByteString);
         const e = forge.util.encode64(eByteString);
 

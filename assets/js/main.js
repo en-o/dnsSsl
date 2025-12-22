@@ -232,7 +232,8 @@ function onStepEnter(step) {
             // 可以在这里添加默认格式选择逻辑
             break;
         case 5:
-            displayInstallationGuide();
+            // 进入步骤5时，申请证书并显示安装指南
+            startCertificateRequest();
             break;
     }
 }
@@ -341,6 +342,51 @@ function bindCertFormatChange() {
 }
 
 // ==================== 显示安装指南 ====================
+async function startCertificateRequest() {
+    // 检查是否已经有证书
+    if (AppState.realCertificate) {
+        console.log('[Main] 已有真实证书，直接显示安装指南');
+        displayInstallationGuide();
+        return;
+    }
+
+    // 显示加载状态
+    const guideContainer = document.getElementById('installation-guide');
+    guideContainer.innerHTML = `
+        <div class="loading-certificate">
+            <div class="loading-spinner"></div>
+            <h3>正在申请证书...</h3>
+            <p>请稍候，系统正在向 ${AppState.acmeProvider} 申请真实的 SSL 证书</p>
+            <div id="cert-request-log" class="cert-request-log"></div>
+        </div>
+    `;
+
+    try {
+        // 调用 ACME 申请流程
+        await requestRealCertificateInStep5();
+
+        // 申请成功，显示安装指南
+        displayInstallationGuide();
+
+    } catch (error) {
+        console.error('[Main] 证书申请失败:', error);
+        guideContainer.innerHTML = `
+            <div class="error-box">
+                <h3>❌ 证书申请失败</h3>
+                <p class="error-message">${error.message}</p>
+                <p>请返回步骤3重新验证配置，或检查以下内容：</p>
+                <ul>
+                    <li>HTTP-01: 验证文件是否可以通过 HTTP 访问</li>
+                    <li>DNS-01: TXT 记录是否已生效</li>
+                    <li>域名解析是否正确</li>
+                    <li>防火墙是否阻止了访问</li>
+                </ul>
+                <button class="btn btn-secondary" onclick="prevStep(5)">返回上一步</button>
+            </div>
+        `;
+    }
+}
+
 function displayInstallationGuide() {
     const guideContainer = document.getElementById('installation-guide');
     const formatNameEl = document.getElementById('selected-format-name');
