@@ -353,17 +353,34 @@ class AcmeClient {
 
             if (!response.ok) {
                 console.error('[ACME] 请求失败:', responseData);
+                console.error('[ACME] 响应状态:', response.status);
 
                 // 提取错误类型和详细信息
                 const errorType = responseData.type || '';
                 const errorDetail = responseData.detail || responseData.message || response.statusText;
+                const errorStatus = response.status;
 
-                // 如果是速率限制错误，抛出特殊错误以便上层识别
-                if (errorType.includes('rateLimited')) {
+                console.log('[ACME 错误分析] errorType:', errorType);
+                console.log('[ACME 错误分析] errorDetail:', errorDetail);
+                console.log('[ACME 错误分析] errorStatus:', errorStatus);
+
+                // 如果是速率限制错误（多种判断方式）
+                const isRateLimit =
+                    errorType.includes('rateLimited') ||
+                    errorDetail.includes('rateLimited') ||
+                    errorDetail.includes('too many certificates') ||
+                    errorStatus === 429;
+
+                console.log('[ACME 错误分析] 是否为速率限制?', isRateLimit);
+
+                if (isRateLimit) {
                     const rateLimitError = new Error(errorDetail);
                     rateLimitError.name = 'RateLimitError';
                     rateLimitError.type = errorType;
                     rateLimitError.detail = errorDetail;
+                    rateLimitError.status = errorStatus;
+                    rateLimitError.isRateLimit = true; // 额外标记
+                    console.log('[ACME 错误分析] 抛出 RateLimitError');
                     throw rateLimitError;
                 }
 

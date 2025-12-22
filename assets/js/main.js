@@ -488,8 +488,34 @@ async function getRealAcmeChallengeForStep2(method) {
     } catch (error) {
         console.error('[Step2] 获取 ACME 挑战数据失败:', error);
 
-        // 检查是否是速率限制错误
-        if (error.name === 'RateLimitError' || (error.message && error.message.includes('rateLimited')) || (error.type && error.type.includes('rateLimited'))) {
+        // 提取完整的错误信息（包括从 error.detail 获取）
+        const errorMessage = error.message || '';
+        const errorDetail = error.detail || '';
+        const errorType = error.type || '';
+        const errorStatus = error.status || 0;
+        const isRateLimit = error.isRateLimit || false;
+
+        console.log('[Step2 错误分析] error.name:', error.name);
+        console.log('[Step2 错误分析] error.message:', errorMessage);
+        console.log('[Step2 错误分析] error.type:', errorType);
+        console.log('[Step2 错误分析] error.detail:', errorDetail);
+        console.log('[Step2 错误分析] error.status:', errorStatus);
+        console.log('[Step2 错误分析] error.isRateLimit:', isRateLimit);
+
+        // 检查是否是速率限制错误（多种判断方式）
+        const isRateLimitError =
+            isRateLimit ||
+            error.name === 'RateLimitError' ||
+            errorStatus === 429 ||
+            errorType.includes('rateLimited') ||
+            errorMessage.includes('rateLimited') ||
+            errorDetail.includes('rateLimited') ||
+            errorMessage.includes('too many certificates') ||
+            errorDetail.includes('too many certificates');
+
+        console.log('[Step2 错误分析] 最终判断为速率限制?', isRateLimitError);
+
+        if (isRateLimitError) {
             // 速率限制错误 - 提供详细说明和解决方案
             const errorMsg = `⚠️ Let's Encrypt 速率限制
 
@@ -497,11 +523,12 @@ async function getRealAcmeChallengeForStep2(method) {
 
 解决方案：
 1. 【推荐】切换到 "Let's Encrypt Staging" 测试环境
-   - 返回步骤1，选择 "Let's Encrypt Staging（测试环境）"
+   - 点击下方"上一步"返回
+   - 选择 "Let's Encrypt Staging（测试环境）"
    - Staging 环境速率限制更宽松，适合测试学习
 
 2. 等待限制解除
-   - 需要等到 7 天后才能再次申请
+   - 需要等到 2025-12-23 19:19 后才能再次申请
    - 查看详情：https://letsencrypt.org/docs/rate-limits/
 
 3. 使用不同的域名进行测试
@@ -510,20 +537,56 @@ async function getRealAcmeChallengeForStep2(method) {
 
             alert(errorMsg);
 
+            // 在页面上显示醒目的错误提示
+            showStep2ErrorNotice('速率限制', `
+                <h4 style="color: #dc2626; margin-bottom: 0.5rem;">⚠️ Let's Encrypt 速率限制</h4>
+                <p style="margin-bottom: 0.5rem;">您的域名 <strong>${escapeHtml(domain)}</strong> 在过去7天内已申请了5次证书，达到速率限制。</p>
+                <p style="margin-bottom: 0.5rem;"><strong>推荐解决方案：</strong></p>
+                <ol style="margin-left: 1.5rem; margin-bottom: 0.5rem;">
+                    <li>点击下方"上一步"返回</li>
+                    <li>选择 <strong>"Let's Encrypt Staging（测试环境）"</strong></li>
+                    <li>重新进入步骤2即可继续测试</li>
+                </ol>
+                <p style="font-size: 0.875rem; color: #7f1d1d; margin-top: 0.5rem;">💡 Staging 环境速率限制极宽松（每3小时30,000次），适合学习和测试</p>
+                <details style="margin-top: 0.5rem;">
+                    <summary style="cursor: pointer; color: #991b1b; font-size: 0.875rem;">查看详细错误信息</summary>
+                    <pre style="background: white; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.75rem; margin-top: 0.5rem;">${escapeHtml(errorDetail || errorMessage)}</pre>
+                </details>
+            `);
+
+            // 禁用步骤2的所有交互操作
+            disableStep2AllInteractions();
+
             // 禁用步骤2的下一步按钮
-            disableStep2NextButton('❌ 速率限制，请切换到 Staging 环境或使用其他域名');
+            disableStep2NextButton('❌ 速率限制，请返回步骤1切换到 Staging 环境');
             return; // 不要 throw，避免未捕获的异常
         }
 
         // 其他错误
-        let errorMsg = '获取验证数据失败：' + error.message;
+        let errorMsg = '❌ 获取验证数据失败\n\n';
+        errorMsg += '错误详情：' + (errorDetail || errorMessage) + '\n\n';
 
-        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
-            errorMsg += '\n\n可能的原因：\n1. 网络连接问题\n2. 防火墙/代理拦截\n3. ACME 服务器暂时不可用\n\n请检查网络连接后重试。';
+        if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Network') || errorMessage.includes('NetworkError')) {
+            errorMsg += '可能的原因：\n1. 网络连接问题\n2. 防火墙/代理拦截\n3. ACME 服务器暂时不可用\n\n请检查网络连接后重试。';
+        } else {
+            errorMsg += '请检查以下内容：\n1. 域名是否正确\n2. 网络连接是否正常\n3. 是否有防火墙拦截';
         }
 
         alert(errorMsg);
-        disableStep2NextButton('❌ 获取验证数据失败');
+
+        // 在页面上显示错误提示
+        showStep2ErrorNotice('获取失败', `
+            <h4 style="color: #dc2626; margin-bottom: 0.5rem;">❌ 获取验证数据失败</h4>
+            <p style="margin-bottom: 0.5rem;">无法从 ${AppState.acmeProvider === 'letsencrypt' ? 'Let\'s Encrypt' : 'CA 服务器'} 获取验证数据。</p>
+            <p style="margin-bottom: 0.5rem;"><strong>错误信息：</strong></p>
+            <pre style="background: #fef2f2; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.875rem;">${escapeHtml(errorDetail || errorMessage)}</pre>
+            <p style="font-size: 0.875rem; color: #7f1d1d; margin-top: 0.5rem;">💡 请返回步骤1检查网络连接或稍后重试</p>
+        `);
+
+        // 禁用步骤2的所有交互操作
+        disableStep2AllInteractions();
+
+        disableStep2NextButton('❌ 获取验证数据失败，请重试');
     }
 }
 
@@ -892,6 +955,12 @@ function enableStep2NextButton() {
     if (hint) {
         hint.style.display = 'none';
     }
+
+    // 移除错误提示（如果存在）
+    const errorNotice = document.getElementById('step2-error-notice');
+    if (errorNotice) {
+        errorNotice.remove();
+    }
 }
 
 function disableStep2NextButton(message = '⏳ 正在获取验证数据...') {
@@ -907,6 +976,108 @@ function disableStep2NextButton(message = '⏳ 正在获取验证数据...') {
         hint.textContent = message;
         hint.style.color = '#64748b';
     }
+}
+
+// 显示步骤2错误提示
+function showStep2ErrorNotice(title, htmlContent) {
+    // 移除旧的错误提示
+    const oldNotice = document.getElementById('step2-error-notice');
+    if (oldNotice) {
+        oldNotice.remove();
+    }
+
+    // 创建新的错误提示
+    const errorNotice = document.createElement('div');
+    errorNotice.id = 'step2-error-notice';
+    errorNotice.style.cssText = `
+        margin: 1.5rem 0;
+        padding: 1.5rem;
+        background: #fef2f2;
+        border: 2px solid #dc2626;
+        border-radius: 8px;
+        animation: fadeIn 0.3s ease-out;
+    `;
+    errorNotice.innerHTML = htmlContent;
+
+    // 插入到验证详情容器之后
+    const detailsContainer = document.getElementById('verification-details');
+    if (detailsContainer && detailsContainer.parentNode) {
+        detailsContainer.parentNode.insertBefore(errorNotice, detailsContainer.nextSibling);
+    }
+}
+
+// 禁用步骤2的所有交互操作
+function disableStep2AllInteractions() {
+    console.log('[Step2] 禁用所有交互操作');
+
+    // 禁用验证方式选择（单选按钮）
+    const radioButtons = document.querySelectorAll('input[name="verification-method"]');
+    radioButtons.forEach(radio => {
+        radio.disabled = true;
+        // 添加视觉反馈
+        if (radio.parentElement && radio.parentElement.parentElement) {
+            radio.parentElement.parentElement.style.opacity = '0.5';
+            radio.parentElement.parentElement.style.pointerEvents = 'none';
+        }
+    });
+
+    // 禁用下一步按钮（已经在 disableStep2NextButton 中处理）
+
+    // 在验证详情区域添加遮罩层
+    const detailsContainer = document.getElementById('verification-details');
+    if (detailsContainer) {
+        detailsContainer.style.position = 'relative';
+
+        // 移除旧遮罩
+        const oldOverlay = detailsContainer.querySelector('.error-overlay');
+        if (oldOverlay) {
+            oldOverlay.remove();
+        }
+
+        // 创建新遮罩
+        const overlay = document.createElement('div');
+        overlay.className = 'error-overlay';
+        overlay.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(239, 68, 68, 0.05);
+            backdrop-filter: blur(2px);
+            z-index: 10;
+            border-radius: 8px;
+            cursor: not-allowed;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+
+        overlay.innerHTML = `
+            <div style="background: white; padding: 1rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); text-align: center;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="color: #dc2626; margin-bottom: 0.5rem;">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 8V12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="12" cy="16" r="1" fill="currentColor"/>
+                </svg>
+                <p style="margin: 0; color: #dc2626; font-weight: 600; font-size: 0.875rem;">
+                    操作已禁用<br>
+                    <span style="font-weight: 400; font-size: 0.75rem;">请点击"上一步"返回</span>
+                </p>
+            </div>
+        `;
+
+        detailsContainer.appendChild(overlay);
+    }
+
+    // 禁用验证选项卡片的点击
+    const verificationOptions = document.querySelectorAll('.verification-option');
+    verificationOptions.forEach(option => {
+        option.style.opacity = '0.5';
+        option.style.pointerEvents = 'none';
+    });
+
+    console.log('[Step2] 所有交互操作已禁用，仅保留"上一步"按钮');
 }
 
 // ==================== 平滑滚动 Polyfill ====================
