@@ -547,6 +547,7 @@ async function fetchAcmeChallenge() {
 /**
  * 在步骤5申请真实证书
  * 此时配置已经验证通过，用户已选择证书格式
+ * 复用步骤2创建的 ACME 订单和挑战数据
  */
 async function requestRealCertificateInStep5() {
     const domain = AppState.domain;
@@ -571,53 +572,69 @@ async function requestRealCertificateInStep5() {
         log(`验证方式: ${verificationMethod === 'webserver' ? 'HTTP-01' : 'DNS-01'}`);
         log('');
 
-        // 步骤 1: 初始化 ACME 客户端
-        log('正在初始化 ACME 客户端...');
-        const acmeClient = new AcmeClient(caProvider);
-        await acmeClient.initialize();
-        log('✓ ACME 客户端初始化成功');
+        let acmeClient, orderUrl, challengeUrl;
 
-        // 步骤 2: 创建或获取账户
-        log('正在创建/获取 ACME 账户...');
-        await acmeClient.createAccount('');
-        log('✓ ACME 账户准备完成');
+        // 检查是否有步骤2保存的 ACME 订单
+        if (AppState.acmeClient && AppState.acmeOrderUrl && AppState.acmeChallengeUrl) {
+            log('✓ 使用步骤2已创建的 ACME 订单');
+            acmeClient = AppState.acmeClient;
+            orderUrl = AppState.acmeOrderUrl;
+            challengeUrl = AppState.acmeChallengeUrl;
+        } else {
+            // 如果没有，重新创建（这种情况不应该发生，但作为容错处理）
+            log('⚠️ 未找到步骤2的订单，重新创建...');
 
-        // 步骤 3: 创建订单
-        log(`正在为域名 ${domain} 创建订单...`);
-        const { order, orderUrl } = await acmeClient.createOrder(domain);
-        log('✓ 订单创建成功');
+            // 步骤 1: 初始化 ACME 客户端
+            log('正在初始化 ACME 客户端...');
+            acmeClient = new AcmeClient(caProvider);
+            await acmeClient.initialize();
+            log('✓ ACME 客户端初始化成功');
 
-        // 步骤 4: 获取授权挑战
-        log('正在获取授权挑战...');
-        const authUrl = order.authorizations[0];
-        const authorization = await acmeClient.getAuthorization(authUrl);
+            // 步骤 2: 创建或获取账户
+            log('正在创建/获取 ACME 账户...');
+            await acmeClient.createAccount('');
+            log('✓ ACME 账户准备完成');
 
-        // 根据验证方式选择挑战
-        let challenge;
+            // 步骤 3: 创建订单
+            log(`正在为域名 ${domain} 创建订单...`);
+            const { order, orderUrl: newOrderUrl } = await acmeClient.createOrder(domain);
+            orderUrl = newOrderUrl;
+            log('✓ 订单创建成功');
 
-        if (verificationMethod === 'webserver') {
-            challenge = authorization.challenges.find(c => c.type === 'http-01');
-            if (!challenge) {
-                throw new Error('服务器不支持 HTTP-01 验证');
+            // 步骤 4: 获取授权挑战
+            log('正在获取授权挑战...');
+            const authUrl = order.authorizations[0];
+            const authorization = await acmeClient.getAuthorization(authUrl);
+
+            // 根据验证方式选择挑战
+            let challenge;
+
+            if (verificationMethod === 'webserver') {
+                challenge = authorization.challenges.find(c => c.type === 'http-01');
+                if (!challenge) {
+                    throw new Error('服务器不支持 HTTP-01 验证');
+                }
+                log('✓ HTTP-01 挑战数据获取成功');
+
+            } else if (verificationMethod === 'dns') {
+                challenge = authorization.challenges.find(c => c.type === 'dns-01');
+                if (!challenge) {
+                    throw new Error('服务器不支持 DNS-01 验证');
+                }
+                log('✓ DNS-01 挑战数据获取成功');
             }
-            log('✓ HTTP-01 挑战数据获取成功');
 
-        } else if (verificationMethod === 'dns') {
-            challenge = authorization.challenges.find(c => c.type === 'dns-01');
-            if (!challenge) {
-                throw new Error('服务器不支持 DNS-01 验证');
-            }
-            log('✓ DNS-01 挑战数据获取成功');
+            challengeUrl = challenge.url;
         }
 
         // 步骤 5: 触发挑战验证
         log('正在触发挑战验证...');
-        await acmeClient.triggerChallenge(challenge.url);
+        await acmeClient.triggerChallenge(challengeUrl);
         log('✓ 验证请求已发送到 CA 服务器');
 
         // 步骤 6: 轮询挑战状态
         log('正在等待 CA 服务器验证（最多等待90秒）...');
-        await acmeClient.pollChallengeStatus(challenge.url);
+        await acmeClient.pollChallengeStatus(challengeUrl);
         log('✓ 域名验证成功！');
 
         // 步骤 7: 生成域名密钥对
@@ -630,17 +647,23 @@ async function requestRealCertificateInStep5() {
         const csr = acmeClient.generateCSR(domain, domainKeyPair);
         log('✓ CSR 生成完成');
 
-        // 步骤 9: 提交订单
+        // 步骤 9: 获取订单状态以获取 finalize URL
+        log('正在获取订单状态...');
+        const orderResponse = await acmeClient.sendJWS(orderUrl, '');
+        const orderData = orderResponse.data;
+        log('✓ 订单状态获取成功');
+
+        // 步骤 10: 提交订单
         log('正在提交订单到 CA 服务器...');
-        await acmeClient.finalizeOrder(order.finalize, csr);
+        await acmeClient.finalizeOrder(orderData.finalize, csr);
         log('✓ 订单已提交');
 
-        // 步骤 10: 等待证书签发
+        // 步骤 11: 等待证书签发
         log('正在等待 CA 服务器签发证书（最多等待90秒）...');
         const completedOrder = await acmeClient.pollOrderStatus(orderUrl);
         log('✓ 证书已签发！');
 
-        // 步骤 11: 下载证书
+        // 步骤 12: 下载证书
         log('正在下载证书...');
         const certificatePem = await acmeClient.downloadCertificate(completedOrder.certificate);
         const privateKeyPem = acmeClient.exportPrivateKeyPem(domainKeyPair);

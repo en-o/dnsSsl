@@ -10,6 +10,10 @@ const AppState = {
     challengeFilename: '',
     challengeContent: '',
     dnsValue: '',
+    // ACME 订单信息（步骤2创建，步骤5复用）
+    acmeClient: null,
+    acmeOrderUrl: null,
+    acmeChallengeUrl: null,
     // SSL证书信息
     sslCertInfo: null,
     certDaysRemaining: null
@@ -100,6 +104,9 @@ function restartWizard() {
     AppState.challengeFilename = '';
     AppState.challengeContent = '';
     AppState.dnsValue = '';
+    AppState.acmeClient = null;
+    AppState.acmeOrderUrl = null;
+    AppState.acmeChallengeUrl = null;
     AppState.sslCertInfo = null;
     AppState.certDaysRemaining = null;
 
@@ -229,7 +236,10 @@ function onStepEnter(step) {
             prepareVerificationUI();
             break;
         case 4:
-            // 用户需要手动点击选择证书格式
+            // 清除所有证书格式的选中状态，强制用户重新选择
+            document.querySelectorAll('input[name="cert-format"]').forEach(radio => {
+                radio.checked = false;
+            });
             break;
         case 5:
             // 进入步骤5时，申请证书并显示安装指南
@@ -296,8 +306,114 @@ function showVerificationMethod(method) {
     // 更新域名占位符
     updateDomainDisplay();
 
-    // 生成模拟验证数据
-    generateMockVerificationData(method);
+    // 获取真实的 ACME 挑战数据（而不是生成模拟数据）
+    if (AppState.domain) {
+        getRealAcmeChallengeForStep2(method);
+    } else {
+        // 如果还没有域名，使用模拟数据
+        generateMockVerificationData(method);
+    }
+}
+
+// ==================== 获取真实的 ACME 挑战数据（步骤2使用）====================
+/**
+ * 在步骤2获取真实的 ACME 挑战数据，而不是生成模拟数据
+ * 这样用户在步骤2配置的验证数据与步骤5实际申请时使用的数据一致
+ */
+async function getRealAcmeChallengeForStep2(method) {
+    const domain = AppState.domain;
+    const caProvider = AppState.acmeProvider;
+
+    console.log('[Step2] 开始获取真实 ACME 挑战数据...');
+    console.log('[Step2] 域名:', domain);
+    console.log('[Step2] CA提供商:', caProvider);
+    console.log('[Step2] 验证方式:', method);
+
+    try {
+        // 初始化 ACME 客户端
+        const acmeClient = new AcmeClient(caProvider);
+        await acmeClient.initialize();
+
+        // 创建或获取账户
+        await acmeClient.createAccount('');
+
+        // 创建订单
+        const { order, orderUrl } = await acmeClient.createOrder(domain);
+
+        // 获取授权挑战
+        const authUrl = order.authorizations[0];
+        const authorization = await acmeClient.getAuthorization(authUrl);
+
+        // 根据验证方式选择挑战
+        let challenge;
+        let challengeData;
+
+        if (method === 'webserver') {
+            // HTTP-01 挑战
+            challenge = authorization.challenges.find(c => c.type === 'http-01');
+            if (!challenge) {
+                throw new Error('服务器不支持 HTTP-01 验证');
+            }
+
+            challengeData = acmeClient.getHttp01ChallengeData(challenge);
+
+            // 保存到 AppState
+            AppState.challengeFilename = challengeData.filename;
+            AppState.challengeContent = challengeData.content;
+            AppState.acmeOrderUrl = orderUrl;
+            AppState.acmeChallengeUrl = challenge.url;
+            AppState.acmeClient = acmeClient;
+
+            console.log('[Step2] HTTP-01 挑战数据获取成功');
+            console.log('[Step2] 文件名:', challengeData.filename);
+
+            // 更新 UI
+            const filenameEl = document.getElementById('challenge-filename');
+            const contentEl = document.getElementById('challenge-content');
+            const quickCommandEl = document.getElementById('quick-command');
+
+            if (filenameEl) filenameEl.textContent = AppState.challengeFilename;
+            if (contentEl) contentEl.textContent = AppState.challengeContent;
+
+            // 更新快捷命令
+            if (quickCommandEl) {
+                quickCommandEl.textContent = `echo "${AppState.challengeContent}" > /var/www/html/.well-known/acme-challenge/${AppState.challengeFilename}`;
+            }
+
+        } else if (method === 'dns') {
+            // DNS-01 挑战
+            challenge = authorization.challenges.find(c => c.type === 'dns-01');
+            if (!challenge) {
+                throw new Error('服务器不支持 DNS-01 验证');
+            }
+
+            challengeData = acmeClient.getDns01ChallengeData(challenge);
+
+            // 保存到 AppState
+            AppState.dnsValue = challengeData.value;
+            AppState.acmeOrderUrl = orderUrl;
+            AppState.acmeChallengeUrl = challenge.url;
+            AppState.acmeClient = acmeClient;
+
+            console.log('[Step2] DNS-01 挑战数据获取成功');
+            console.log('[Step2] TXT 记录值:', challengeData.value);
+
+            // 更新 UI
+            const dnsHostEl = document.getElementById('dns-host');
+            const dnsValueEl = document.getElementById('dns-value');
+
+            if (dnsHostEl) dnsHostEl.textContent = '_acme-challenge';
+            if (dnsValueEl) dnsValueEl.textContent = AppState.dnsValue;
+        }
+
+        console.log('[Step2] ✓ 真实 ACME 挑战数据已保存到 AppState');
+
+    } catch (error) {
+        console.error('[Step2] 获取 ACME 挑战数据失败:', error);
+        // 如果失败，回退到模拟数据
+        console.warn('[Step2] 回退到模拟数据模式');
+        generateMockVerificationData(method);
+    }
 }
 
 function generateMockVerificationData(method) {
