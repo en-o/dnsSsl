@@ -276,7 +276,7 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
             <div class="cert-format-options">
                 {% for format in site.data.cert_formats.formats %}
                 <div class="cert-format-option" data-format="{{ format.id }}">
-                    <input type="radio" id="format-{{ format.id }}" name="cert-format" value="{{ format.id }}" {% if format.id == 'nginx' %}checked{% endif %}>
+                    <input type="radio" id="format-{{ format.id }}" name="cert-format" value="{{ format.id }}">
                     <label for="format-{{ format.id }}">
                         <div class="format-header">
                             <span class="format-name">{{ format.name }}</span>
@@ -297,7 +297,7 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
 
             <div class="button-group">
                 <button class="btn btn-secondary" onclick="prevStep(4)">上一步</button>
-                <button class="btn btn-primary" onclick="nextStep(4)">下一步</button>
+                <!-- 选择格式后会自动跳转，不需要下一步按钮 -->
             </div>
         </div>
     </div>

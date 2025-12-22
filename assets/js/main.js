@@ -229,7 +229,7 @@ function onStepEnter(step) {
             prepareVerificationUI();
             break;
         case 4:
-            // 可以在这里添加默认格式选择逻辑
+            // 用户需要手动点击选择证书格式
             break;
         case 5:
             // 进入步骤5时，申请证书并显示安装指南
@@ -337,6 +337,11 @@ function bindCertFormatChange() {
     radioButtons.forEach(radio => {
         radio.addEventListener('change', function() {
             AppState.certFormat = this.value;
+
+            // 选择格式后自动跳转到下一步
+            setTimeout(() => {
+                nextStep(4);
+            }, 300); // 延迟300ms，让用户看到选中效果
         });
     });
 }
