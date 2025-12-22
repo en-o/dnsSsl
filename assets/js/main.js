@@ -233,6 +233,12 @@ function showVerificationMethod(method) {
         detailsContainer.innerHTML = template.innerHTML;
     }
 
+    // 同步单选按钮的选中状态
+    const radioButtons = document.querySelectorAll('input[name="verification-method"]');
+    radioButtons.forEach(radio => {
+        radio.checked = (radio.value === method);
+    });
+
     // 更新域名占位符
     updateDomainDisplay();
 

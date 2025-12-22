@@ -240,7 +240,15 @@ async function verifyDNS() {
             if (found) {
                 addLog('success', '✓ 找到匹配的 TXT 记录');
                 addLog('success', '✓ DNS 验证通过！');
-                showVerificationStatus('success', '验证成功！', 'DNS 配置正确，可以继续下一步');
+                addLog('info', '');
+                addLog('info', '💡 重要提示：');
+                addLog('warning', '建议保留此 TXT 记录，不要删除！');
+                addLog('info', '原因：');
+                addLog('info', '1. 证书续期时记录值基本不变，可以直接使用');
+                addLog('info', '2. 即使记录值改变，也只需修改记录值即可');
+                addLog('info', '3. 保留记录可大大简化后续续期操作');
+                addLog('info', '4. TXT 记录不影响域名的正常使用');
+                showVerificationStatus('success', '验证成功！', 'DNS 配置正确，建议保留 TXT 记录以便后续续期');
                 showContinueButton();
             } else {
                 const recordList = txtRecords.map((r, i) => (i + 1) + '. ' + r).join('\n');

@@ -73,7 +73,7 @@ nslookup -type=TXT _acme-challenge.<span class="domain-placeholder">example.com<
             <li>DNS 验证支持通配符证书（如 *.example.com）</li>
             <li>确保 TXT 记录的值用双引号包裹</li>
             <li>不同 DNS 服务商的解析生效时间不同</li>
-            <li>验证完成后可删除 TXT 记录，不影响证书使用</li>
+            <li><strong>建议保留 TXT 记录：</strong>验证成功后尽量不要删除记录，以便后续证书续期时直接使用。记录值基本不会改变，即使改变也只需修改记录值即可，无需重新添加</li>
             <li>如果域名使用了 CDN，注意 DNS 缓存问题</li>
         </ul>
     </div>
