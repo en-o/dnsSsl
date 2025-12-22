@@ -156,11 +156,18 @@ class AcmeClient {
      * Base64url 编码
      */
     base64url(data) {
-        // 如果是字符串，先转换为 UTF-8
-        if (typeof data === 'string') {
+        // 注意：data 可能是：
+        // 1. 普通字符串（如 JSON）-> 需要先转换为 UTF-8 字节
+        // 2. 二进制字节字符串（如 digest.bytes(), 签名）-> 直接编码
+        // forge.util.encode64 接受字节字符串作为参数
+
+        // 如果 data 看起来像普通文本（而非二进制数据），转换为 UTF-8
+        // 简单判断：如果是 JSON 字符串开头，则视为文本
+        if (typeof data === 'string' && (data.startsWith('{') || data.startsWith('['))) {
             data = forge.util.encodeUtf8(data);
         }
-        // 如果是二进制数据（来自签名），直接使用
+        // 否则假设是二进制字节字符串，直接编码
+
         return forge.util.encode64(data)
             .replace(/\+/g, '-')
             .replace(/\//g, '_')

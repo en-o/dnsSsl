@@ -575,11 +575,19 @@ async function requestRealCertificateInStep5() {
         let acmeClient, orderUrl, challengeUrl;
 
         // 检查是否有步骤2保存的 ACME 订单
-        if (AppState.acmeClient && AppState.acmeOrderUrl && AppState.acmeChallengeUrl) {
+        if (AppState.acmeClient && AppState.acmeOrderUrl) {
             log('✓ 使用步骤2已创建的 ACME 订单');
             acmeClient = AppState.acmeClient;
             orderUrl = AppState.acmeOrderUrl;
-            challengeUrl = AppState.acmeChallengeUrl;
+
+            // 根据验证方式选择对应的 challengeUrl
+            if (verificationMethod === 'webserver' && AppState.http01ChallengeUrl) {
+                challengeUrl = AppState.http01ChallengeUrl;
+            } else if (verificationMethod === 'dns' && AppState.dns01ChallengeUrl) {
+                challengeUrl = AppState.dns01ChallengeUrl;
+            } else {
+                throw new Error('未找到对应验证方式的挑战 URL');
+            }
         } else {
             // 如果没有，重新创建（这种情况不应该发生，但作为容错处理）
             log('⚠️ 未找到步骤2的订单，重新创建...');
