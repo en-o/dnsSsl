@@ -309,9 +309,15 @@ function generateMockVerificationData(method) {
 
         const filenameEl = document.getElementById('challenge-filename');
         const contentEl = document.getElementById('challenge-content');
+        const quickCommandEl = document.getElementById('quick-command');
 
         if (filenameEl) filenameEl.textContent = AppState.challengeFilename;
         if (contentEl) contentEl.textContent = AppState.challengeContent;
+
+        // 更新快捷命令
+        if (quickCommandEl) {
+            quickCommandEl.textContent = `echo "${AppState.challengeContent}" > /var/www/html/.well-known/acme-challenge/${AppState.challengeFilename}`;
+        }
     } else if (method === 'dns') {
         // 基于域名生成确定性的 DNS 验证值
         AppState.dnsValue = generateDeterministicString(domain + '-dns', 43);
@@ -417,6 +423,9 @@ function generateDomainBasedFileName(originalFileName, domain) {
     // 根据原始文件名的类型生成新文件名
     if (originalFileName.includes('fullchain')) {
         return `${cleanDomain}_fullchain.${ext}`;
+    } else if (originalFileName.includes('root')) {
+        // 根证书保持原名
+        return originalFileName;
     } else if (originalFileName.includes('chain')) {
         return `${cleanDomain}_chain.${ext}`;
     } else if (originalFileName.includes('cert') || originalFileName.includes('.crt')) {
@@ -445,37 +454,8 @@ function generateRealisticCertificateContent(fileName, domain) {
     const serialNumber = generateSerialNumber(domain);
 
     // 根据文件名判断文件类型
-    if (fileName.includes('.pem') || fileName.includes('.crt')) {
-        // PEM/CRT 格式证书
-        return `-----BEGIN CERTIFICATE-----
-MIIFXTCCBEWgAwIBAgISBN${serialNumber.substring(0, 20)}MAoGCCqGSM49BAMC
-MBgxCzAJBgNVBAYTAlVTMRkwFwYDVQQKExBMZXQncyBFbmNyeXB0MSswKQYDVQQD
-EyJMZXQncyBFbmNyeXB0IEF1dGhvcml0eSBYMzAeFw0${formatDate(notBefore)}WhcNMj
-Q${formatDate(notAfter)}WjAaMRgwFgYDVQQDEw8ke3YyfS5leGFtcGxlLmNvbTBZMBMG
-ByqGSM49AgEGCCqGSM49AwEHA0IABK${generateRandomBase64(64)}
-${generateRandomBase64(64)}KNjwCAwEAAaOCAmYwggJiMA4GA1UdDwEB/wQEAwIFoDAdBgNVHSUE
-FjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDAYDVR0TAQH/BAIwADAdBgNVHQ4EFgQU
-${generateRandomBase64(32)}MGYGCCsGAQUF
-BwEBBFowWDAiBggrBgEFBQcwAYYWaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMDIG
-CCsGAQUFBzAChiZodHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5jb20vZGNzYS1yMy5j
-cnQwGgYDVR0RBBMwEYIPd3d3LmV4YW1wbGUuY29tMEwGA1UdIARFMEMwNwYJYIZI
-AYb9bAEBMCowKAYIKwYBBQUHAgEWHGh0dHBzOi8vd3d3LmRpZ2ljZXJ0LmNvbS9D
-UFMwCAYGZ4EMAQIBMIIBBAYKKwYBBAHWeQIEAgSB9QSB8gDwAHYApLkJkLQYWBSH
-uxOizGdwCjw1mAT5G9+443fNDsgN3BAAAAGMm8bMZwAABAMARzBFAiEA${generateRandomBase64(44)}
-AiA${generateRandomBase64(44)}AHYAVYHUwhaQNgFK
-6gubVzxT8MDkOHhwJQgXL6OqHQcT0wwAAAGMm8bMgAAAQDAEcwRQIhAO${generateRandomBase64(43)}
-AiBN${generateRandomBase64(44)}MAoGCCqGSM49BAMC
-A0gAMEUCIQD${generateRandomBase64(43)}AiAa
-${generateRandomBase64(64)}
------END CERTIFICATE-----
-
-Domain: ${cleanDomain}
-Issuer: Let's Encrypt
-Valid From: ${notBefore.toUTCString()}
-Valid Until: ${notAfter.toUTCString()}
-Serial Number: ${serialNumber}
-`;
-    } else if (fileName.includes('.key') || fileName.includes('privkey')) {
+    // 注意：必须先检查 privkey/key，再检查 .pem，因为 privkey.pem 应该是私钥而不是证书
+    if (fileName.includes('privkey') || (fileName.includes('.key') && !fileName.includes('privkey'))) {
         // 私钥文件
         return `-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC${generateRandomBase64(64)}
@@ -505,6 +485,36 @@ ${generateRandomBase64(64)}==
 ⚠️  警告：请妥善保管此私钥文件，不要泄露给任何人！
 Domain: ${cleanDomain}
 Generated: ${timestamp}
+`;
+    } else if (fileName.includes('.pem') || fileName.includes('.crt') || fileName.includes('.cer')) {
+        // PEM/CRT/CER 格式证书文件（fullchain.pem, cert.pem, chain.pem, root.cer等）
+        return `-----BEGIN CERTIFICATE-----
+MIIFXTCCBEWgAwIBAgISBN${serialNumber.substring(0, 20)}MAoGCCqGSM49BAMC
+MBgxCzAJBgNVBAYTAlVTMRkwFwYDVQQKExBMZXQncyBFbmNyeXB0MSswKQYDVQQD
+EyJMZXQncyBFbmNyeXB0IEF1dGhvcml0eSBYMzAeFw0${formatDate(notBefore)}WhcNMj
+Q${formatDate(notAfter)}WjAaMRgwFgYDVQQDEw8ke3YyfS5leGFtcGxlLmNvbTBZMBMG
+ByqGSM49AgEGCCqGSM49AwEHA0IABK${generateRandomBase64(64)}
+${generateRandomBase64(64)}KNjwCAwEAAaOCAmYwggJiMA4GA1UdDwEB/wQEAwIFoDAdBgNVHSUE
+FjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDAYDVR0TAQH/BAIwADAdBgNVHQ4EFgQU
+${generateRandomBase64(32)}MGYGCCsGAQUF
+BwEBBFowWDAiBggrBgEFBQcwAYYWaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMDIG
+CCsGAQUFBzAChiZodHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5jb20vZGNzYS1yMy5j
+cnQwGgYDVR0RBBMwEYIPd3d3LmV4YW1wbGUuY29tMEwGA1UdIARFMEMwNwYJYIZI
+AYb9bAEBMCowKAYIKwYBBQUHAgEWHGh0dHBzOi8vd3d3LmRpZ2ljZXJ0LmNvbS9D
+UFMwCAYGZ4EMAQIBMIIBBAYKKwYBBAHWeQIEAgSB9QSB8gDwAHYApLkJkLQYWBSH
+uxOizGdwCjw1mAT5G9+443fNDsgN3BAAAAGMm8bMZwAABAMARzBFAiEA${generateRandomBase64(44)}
+AiA${generateRandomBase64(44)}AHYAVYHUwhaQNgFK
+6gubVzxT8MDkOHhwJQgXL6OqHQcT0wwAAAGMm8bMgAAAQDAEcwRQIhAO${generateRandomBase64(43)}
+AiBN${generateRandomBase64(44)}MAoGCCqGSM49BAMC
+A0gAMEUCIQD${generateRandomBase64(43)}AiAa
+${generateRandomBase64(64)}
+-----END CERTIFICATE-----
+
+Domain: ${cleanDomain}
+Issuer: Let's Encrypt
+Valid From: ${notBefore.toUTCString()}
+Valid Until: ${notAfter.toUTCString()}
+Serial Number: ${serialNumber}
 `;
     } else if (fileName.includes('.pfx') || fileName.includes('.p12')) {
         // PKCS#12 格式（二进制，这里用文本说明）

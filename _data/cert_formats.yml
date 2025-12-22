@@ -8,6 +8,10 @@ formats:
         description: 完整证书链（包含域名证书和中间证书）
       - name: privkey.pem
         description: 私钥文件
+      - name: chain.crt
+        description: 根证书/CA证书链
+      - name: root.cer
+        description: 根证书（备用格式）
     installation_guide: |
       ## Nginx 安装指南
 
@@ -68,10 +72,12 @@ formats:
     files:
       - name: cert.crt
         description: 域名证书
-      - name: chain.crt
-        description: 中间证书链
       - name: privkey.key
         description: 私钥文件
+      - name: chain.crt
+        description: 根证书/CA证书链
+      - name: root.cer
+        description: 根证书（备用格式）
     installation_guide: |
       ## Apache 安装指南
 
@@ -140,7 +146,11 @@ formats:
     description: 适用于 Apache Tomcat 应用服务器
     files:
       - name: keystore.pfx
-        description: PKCS#12 格式的密钥库文件
+        description: PKCS#12 格式的密钥库文件（包含私钥和证书）
+      - name: chain.crt
+        description: 根证书/CA证书链
+      - name: root.cer
+        description: 根证书（备用格式）
     installation_guide: |
       ## Tomcat 安装指南
 
@@ -183,7 +193,11 @@ formats:
     description: 适用于 Windows IIS 服务器
     files:
       - name: certificate.pfx
-        description: PKCS#12 格式证书文件（包含私钥）
+        description: PKCS#12 格式证书文件（包含私钥和证书）
+      - name: chain.crt
+        description: 根证书/CA证书链
+      - name: root.cer
+        description: 根证书（备用格式）
     installation_guide: |
       ## IIS 安装指南
 
@@ -232,7 +246,11 @@ formats:
     description: 适用于 Java 应用（如 Spring Boot）
     files:
       - name: keystore.jks
-        description: Java KeyStore 格式密钥库
+        description: Java KeyStore 格式密钥库（包含私钥和证书）
+      - name: chain.crt
+        description: 根证书/CA证书链
+      - name: root.cer
+        description: 根证书（备用格式）
     installation_guide: |
       ## Java KeyStore 使用指南
 

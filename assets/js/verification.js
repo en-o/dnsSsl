@@ -166,7 +166,7 @@ async function verifyWebServer() {
     } catch (error) {
         // 捕获CORS或网络错误
         if (error.message.includes('Failed to fetch') || error.message.includes('CORS') || error.name === 'TypeError') {
-            addLog('warning', '⚠ 浏览器 CORS 限制：无法直接访问验证文件');
+            addLog('error', '✗ 浏览器 CORS 限制：无法直接访问验证文件');
             addLog('info', '');
             addLog('info', '请手动验证以下URL是否可访问：');
             addLog('info', verifyUrl);
@@ -176,11 +176,14 @@ async function verifyWebServer() {
             addLog('info', '2. 或使用命令行: curl ' + verifyUrl);
             addLog('info', '3. 确认返回内容为: ' + challengeContent);
             addLog('info', '');
-            addLog('warning', '如果URL可以正常访问且内容正确，请点击"继续下一步"');
+            addLog('error', '验证失败：由于浏览器安全限制，无法完成自动验证');
+            addLog('info', '');
+            addLog('warning', '解决方案：');
+            addLog('info', '1. 使用命令行工具（如 certbot、acme.sh）进行实际申请');
+            addLog('info', '2. 或者配置服务器允许 CORS（不推荐用于生产环境）');
 
-            // 虽然有CORS错误，但给用户继续的机会
-            showVerificationStatus('warning', '无法自动验证', '请手动确认URL可访问后继续');
-            showContinueButton();
+            showVerificationStatus('error', '验证失败', '由于浏览器 CORS 限制，无法完成验证。请使用命令行工具进行实际证书申请。');
+            throw new Error('浏览器 CORS 限制导致验证失败');
         } else {
             addLog('error', '✗ HTTP 请求失败: ' + error.message);
             addLog('info', '');
@@ -190,6 +193,7 @@ async function verifyWebServer() {
             addLog('info', '3. 验证文件已正确放置');
             addLog('info', '4. 防火墙允许 HTTP (80端口) 访问');
             addLog('info', '5. Nginx 配置已生效（nginx -s reload）');
+            showVerificationStatus('error', '验证失败', error.message);
             throw error;
         }
     }
