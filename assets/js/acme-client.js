@@ -156,9 +156,11 @@ class AcmeClient {
      * Base64url 编码
      */
     base64url(data) {
+        // 如果是字符串，先转换为 UTF-8
         if (typeof data === 'string') {
             data = forge.util.encodeUtf8(data);
         }
+        // 如果是二进制数据（来自签名），直接使用
         return forge.util.encode64(data)
             .replace(/\+/g, '-')
             .replace(/\//g, '_')
@@ -212,8 +214,15 @@ class AcmeClient {
         const signatureInput = `${protectedB64}.${payloadB64}`;
         const md = forge.md.sha256.create();
         md.update(signatureInput, 'utf8');
-        const signature = this.accountKeyPair.privateKey.sign(md);
-        const signatureB64 = this.base64url(signature);
+
+        // 使用私钥签名（返回的是字节字符串）
+        const signatureBytes = this.accountKeyPair.privateKey.sign(md);
+
+        // 直接对字节字符串进行 base64url 编码（不要再用 encodeUtf8）
+        const signatureB64 = forge.util.encode64(signatureBytes)
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=/g, '');
 
         console.log('[ACME] Signature (base64url):', signatureB64.substring(0, 50) + '...');
 
