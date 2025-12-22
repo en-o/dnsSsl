@@ -1,6 +1,36 @@
 
 // ==================== 证书生成相关功能 ====================
 
+// ==================== 启用/禁用下载所有按钮 ====================
+function enableDownloadAllButton() {
+    const downloadBtn = document.getElementById('btn-download-all-zip');
+    const downloadHint = document.getElementById('download-hint');
+
+    if (downloadBtn) {
+        downloadBtn.disabled = false;
+        console.log('[Certificate] 下载所有按钮已启用');
+    }
+
+    if (downloadHint) {
+        downloadHint.style.display = 'none';
+    }
+}
+
+function disableDownloadAllButton() {
+    const downloadBtn = document.getElementById('btn-download-all-zip');
+    const downloadHint = document.getElementById('download-hint');
+
+    if (downloadBtn) {
+        downloadBtn.disabled = true;
+    }
+
+    if (downloadHint) {
+        downloadHint.style.display = 'block';
+        downloadHint.textContent = '⏳ 等待证书申请完成...';
+        downloadHint.style.color = '#64748b';
+    }
+}
+
 // ==================== 生成证书文件下载列表 ====================
 function generateCertificateFilesList(format) {
     const filesListContainer = document.getElementById('cert-files-list');
@@ -37,6 +67,9 @@ function generateCertificateFilesList(format) {
     }).join('');
 
     filesListContainer.innerHTML = filesHtml;
+
+    // 证书文件列表生成完成，启用"下载所有证书文件（ZIP）"按钮
+    enableDownloadAllButton();
 }
 
 // 根据域名生成文件名

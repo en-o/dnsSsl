@@ -1759,6 +1759,17 @@ body {
     padding: var(--spacing-md) var(--spacing-xl);
 }
 
+.btn-download-all:disabled {
+    background: var(--secondary-color);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.btn-download-all:disabled:hover {
+    background: var(--secondary-color);
+    transform: none;
+}
+
 .btn-download-all svg {
     flex-shrink: 0;
 }

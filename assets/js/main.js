@@ -503,6 +503,11 @@ async function startCertificateRequest() {
     // 先显示基本界面，让用户立即看到内容
     displayInstallationGuideBasicInfo();
 
+    // 禁用下载所有按钮，等待证书申请完成
+    if (typeof disableDownloadAllButton === 'function') {
+        disableDownloadAllButton();
+    }
+
     // 检查是否已经有证书
     if (AppState.realCertificate) {
         console.log('[Main] 已有真实证书，直接生成证书文件列表');
@@ -543,6 +548,14 @@ async function startCertificateRequest() {
                 </ul>
             </div>
         `;
+
+        // 更新下载提示为错误状态
+        const downloadHint = document.getElementById('download-hint');
+        if (downloadHint) {
+            downloadHint.style.display = 'block';
+            downloadHint.textContent = '❌ 证书申请失败，无法下载';
+            downloadHint.style.color = '#ef4444';
+        }
     }
 }
 

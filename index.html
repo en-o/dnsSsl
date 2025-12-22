@@ -348,7 +348,7 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                 </div>
 
                 <div class="download-all-section">
-                    <button class="btn btn-primary btn-download-all" onclick="downloadAllCertificates()">
+                    <button id="btn-download-all-zip" class="btn btn-primary btn-download-all" onclick="downloadAllCertificates()" disabled>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             <polyline points="7 10 12 15 17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -356,6 +356,9 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                         </svg>
                         下载所有证书文件（ZIP）
                     </button>
+                    <p class="download-hint" id="download-hint" style="margin-top: 8px; font-size: 14px; color: #64748b;">
+                        ⏳ 等待证书申请完成...
+                    </p>
                 </div>
             </div>
 
