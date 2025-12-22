@@ -2,16 +2,12 @@
 formats:
   - id: nginx
     name: Nginx
-    description: 适用于 Nginx Web 服务器
+    description: Nginx证书文件 pem和key
     files:
-      - name: fullchain.pem
-        description: 完整证书链（包含域名证书和中间证书）
-      - name: privkey.pem
+      - name: domain.pem
+        description: 域名证书文件
+      - name: domain.key
         description: 私钥文件
-      - name: chain.crt
-        description: 根证书/CA证书链
-      - name: root.cer
-        description: 根证书（备用格式）
     installation_guide: |
       ## Nginx 安装指南
 
@@ -68,16 +64,12 @@ formats:
 
   - id: apache
     name: Apache
-    description: 适用于 Apache HTTP Server
+    description: Apache证书文件 crt/key
     files:
-      - name: cert.crt
-        description: 域名证书
-      - name: privkey.key
+      - name: domain.crt
+        description: 域名证书文件
+      - name: domain.key
         description: 私钥文件
-      - name: chain.crt
-        description: 根证书/CA证书链
-      - name: root.cer
-        description: 根证书（备用格式）
     installation_guide: |
       ## Apache 安装指南
 
@@ -143,14 +135,10 @@ formats:
 
   - id: tomcat
     name: Tomcat
-    description: 适用于 Apache Tomcat 应用服务器
+    description: Tomcat证书文件 pfx
     files:
-      - name: keystore.pfx
+      - name: domain.pfx
         description: PKCS#12 格式的密钥库文件（包含私钥和证书）
-      - name: chain.crt
-        description: 根证书/CA证书链
-      - name: root.cer
-        description: 根证书（备用格式）
     installation_guide: |
       ## Tomcat 安装指南
 
@@ -190,14 +178,10 @@ formats:
 
   - id: iis
     name: IIS
-    description: 适用于 Windows IIS 服务器
+    description: IIS证书文件 pfx
     files:
-      - name: certificate.pfx
+      - name: domain.pfx
         description: PKCS#12 格式证书文件（包含私钥和证书）
-      - name: chain.crt
-        description: 根证书/CA证书链
-      - name: root.cer
-        description: 根证书（备用格式）
     installation_guide: |
       ## IIS 安装指南
 
@@ -243,14 +227,10 @@ formats:
 
   - id: jks
     name: JKS
-    description: 适用于 Java 应用（如 Spring Boot）
+    description: JKS证书文件 jks
     files:
-      - name: keystore.jks
+      - name: domain.jks
         description: Java KeyStore 格式密钥库（包含私钥和证书）
-      - name: chain.crt
-        description: 根证书/CA证书链
-      - name: root.cer
-        description: 根证书（备用格式）
     installation_guide: |
       ## Java KeyStore 使用指南
 
@@ -288,6 +268,60 @@ formats:
 
       ### 3. 验证
       访问 `https://localhost:8443` 验证 HTTPS 是否生效。
+
+  - id: rootcert
+    name: 根证书
+    description: 根证书下载证书文件 crt/cer
+    files:
+      - name: domain.crt
+        description: 根证书/CA证书链
+      - name: domain.cer
+        description: 根证书（备用格式）
+    installation_guide: |
+      ## 根证书说明
+
+      根证书（Root Certificate）和CA证书链（Certificate Chain）用于验证SSL证书的可信性。
+
+      ### 文件说明
+      - **chain.crt**: 完整的CA证书链（CRT格式）
+      - **root.cer**: 根证书（CER格式，备用）
+
+      ### 使用场景
+
+      #### 1. 客户端信任配置
+      某些客户端或应用需要手动安装根证书才能信任SSL连接：
+      - 移动应用开发测试
+      - 内部系统API调用
+      - 某些旧版客户端
+
+      #### 2. 证书链验证
+      用于验证完整的证书信任链：
+      ```bash
+      # 验证证书链
+      openssl verify -CAfile chain.crt your-cert.crt
+      ```
+
+      #### 3. 服务器配置
+      某些服务器需要单独指定CA证书链：
+
+      **Nginx 示例：**
+      ```nginx
+      ssl_certificate /path/to/cert.pem;
+      ssl_certificate_key /path/to/key.pem;
+      ssl_trusted_certificate /path/to/chain.crt;
+      ```
+
+      **Apache 示例：**
+      ```apache
+      SSLCertificateFile /path/to/cert.crt
+      SSLCertificateKeyFile /path/to/key.key
+      SSLCertificateChainFile /path/to/chain.crt
+      ```
+
+      ### 注意事项
+      - Let's Encrypt 的根证书通常已被主流浏览器和操作系统信任
+      - 只有在特殊场景下才需要手动安装根证书
+      - 生产环境中通常不需要单独配置根证书
 
   - id: other
     name: 其他 / PEM 格式
