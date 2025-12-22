@@ -54,6 +54,35 @@ function generateDomainBasedFileName(originalFileName, domain) {
 // ==================== 生成真实的证书内容 ====================
 function generateRealisticCertificateContent(fileName, domain) {
     const cleanDomain = domain.replace('*.', '');
+
+    // 检查是否有真实证书
+    if (AppState.realCertificate) {
+        console.log('[Certificate] 使用真实的 ACME 证书');
+
+        // 根据文件扩展名返回对应内容
+        if (fileName.endsWith('.key')) {
+            // 返回真实的私钥
+            return AppState.realCertificate.privateKey;
+        } else if (fileName.endsWith('.pem') || fileName.endsWith('.crt') || fileName.endsWith('.cer')) {
+            // 返回真实的证书
+            return AppState.realCertificate.certificate;
+        } else if (fileName.endsWith('.pfx') || fileName.endsWith('.p12')) {
+            // PFX 需要转换（需要 forge.js）
+            return convertToPKCS12(AppState.realCertificate.certificate, AppState.realCertificate.privateKey, cleanDomain);
+        } else if (fileName.endsWith('.jks')) {
+            // JKS 格式（浏览器无法直接生成，提供说明）
+            return generateJKSInstructions(cleanDomain);
+        }
+    }
+
+    // 如果没有真实证书，生成模拟证书
+    console.log('[Certificate] 生成模拟证书（演示用）');
+    return generateMockCertificateContent(fileName, domain);
+}
+
+// ==================== 生成模拟证书内容 ====================
+function generateMockCertificateContent(fileName, domain) {
+    const cleanDomain = domain.replace('*.', '');
     const timestamp = new Date().toISOString();
     const notBefore = new Date();
     const notAfter = new Date();
@@ -341,4 +370,179 @@ ${selectedFormat.installation_guide}
         btn.disabled = false;
         btn.innerHTML = originalText;
     }
+}
+
+// ==================== PFX/PKCS#12 格式转换 ====================
+function convertToPKCS12(certificatePem, privateKeyPem, friendlyName) {
+    try {
+        // 检查 forge.js 是否加载
+        if (typeof forge === 'undefined') {
+            throw new Error('forge.js 库未加载');
+        }
+
+        // 尝试使用 forge.js 生成 PKCS#12
+        // 注意：浏览器中生成的 PKCS#12 可能无法直接作为二进制下载
+        // 因此这里提供转换说明，用户可以使用 OpenSSL 命令行工具进行转换
+
+        const timestamp = new Date().toISOString();
+
+        return `此文件为二进制格式的 PKCS#12 证书文件（PFX）。
+
+文件信息：
+- 格式: PKCS#12 / PFX
+- 域名: ${friendlyName}
+- 包含: 私钥 + 证书链
+- 生成时间: ${timestamp}
+
+⚠️  浏览器限制说明：
+由于浏览器安全限制，无法直接生成二进制 PFX 文件。
+请使用以下方法之一生成 PFX 文件：
+
+方法一：使用 OpenSSL 命令行工具（推荐）
+============================================
+
+1. 下载 ${friendlyName}.pem 和 ${friendlyName}.key 文件
+2. 在命令行中运行以下命令：
+
+openssl pkcs12 -export -out ${friendlyName}.pfx \\
+  -inkey ${friendlyName}.key \\
+  -in ${friendlyName}.pem \\
+  -name "${friendlyName}"
+
+3. 按提示输入导出密码（建议设置强密码）
+
+方法二：使用在线转换工具
+========================
+访问 https://www.sslshopper.com/ssl-converter.html
+上传 PEM 和 KEY 文件进行转换
+
+使用方法：
+==========
+**Windows IIS:**
+1. 双击 ${friendlyName}.pfx 文件
+2. 选择"本地计算机"
+3. 输入证书密码
+4. 在 IIS 管理器中绑定到网站
+
+**Tomcat:**
+在 server.xml 中配置：
+<Connector port="8443" protocol="org.apache.coyote.http11.Http11NioProtocol"
+           maxThreads="150" SSLEnabled="true">
+    <SSLHostConfig>
+        <Certificate certificateKeystoreFile="/path/to/${friendlyName}.pfx"
+                    certificateKeystorePassword="您的密码"
+                    certificateKeystoreType="PKCS12" />
+    </SSLHostConfig>
+</Connector>
+
+⚠️  安全提示：
+- 务必为 PFX 文件设置强密码
+- 妥善保管私钥文件，不要泄露给他人
+- 生产环境中使用 600 权限保护文件
+`;
+
+    } catch (error) {
+        console.error('[Certificate] PFX 转换失败:', error);
+        return `PFX 转换失败: ${error.message}
+
+请下载 PEM 和 KEY 文件，使用 OpenSSL 命令行工具进行转换：
+
+openssl pkcs12 -export -out ${friendlyName}.pfx \\
+  -inkey ${friendlyName}.key \\
+  -in ${friendlyName}.pem \\
+  -name "${friendlyName}"
+`;
+    }
+}
+
+// ==================== JKS 格式转换说明 ====================
+function generateJKSInstructions(domain) {
+    const timestamp = new Date().toISOString();
+
+    return `此文件为二进制格式的 Java KeyStore 文件（JKS）。
+
+文件信息：
+- 格式: JKS (Java KeyStore)
+- 域名: ${domain}
+- 包含: 私钥 + 证书链
+- 生成时间: ${timestamp}
+- 默认密码: changeit
+
+⚠️  浏览器限制说明：
+由于浏览器安全限制，无法直接生成二进制 JKS 文件。
+请使用以下方法生成 JKS 文件：
+
+转换步骤（推荐）
+================
+
+步骤 1: 下载证书文件
+-------------------
+下载 ${domain}.pem 和 ${domain}.key 文件到本地
+
+步骤 2: 转换为 PKCS#12 格式
+---------------------------
+openssl pkcs12 -export -out ${domain}.p12 \\
+  -inkey ${domain}.key \\
+  -in ${domain}.pem \\
+  -name tomcat \\
+  -passout pass:changeit
+
+步骤 3: 转换为 JKS 格式
+-----------------------
+keytool -importkeystore \\
+  -srckeystore ${domain}.p12 \\
+  -srcstoretype PKCS12 \\
+  -srcstorepass changeit \\
+  -destkeystore ${domain}.jks \\
+  -deststoretype JKS \\
+  -deststorepass changeit \\
+  -destkeypass changeit
+
+⚠️  注意：实际环境中，请将 'changeit' 替换为强密码！
+
+Spring Boot 配置示例
+====================
+
+**application.properties:**
+server.port=8443
+server.ssl.enabled=true
+server.ssl.key-store=classpath:${domain}.jks
+server.ssl.key-store-password=changeit
+server.ssl.key-store-type=JKS
+server.ssl.key-alias=tomcat
+
+**application.yml:**
+server:
+  port: 8443
+  ssl:
+    enabled: true
+    key-store: classpath:${domain}.jks
+    key-store-password: changeit
+    key-store-type: JKS
+    key-alias: tomcat
+
+Tomcat 配置示例
+===============
+
+在 server.xml 中配置：
+<Connector port="8443" protocol="org.apache.coyote.http11.Http11NioProtocol"
+           maxThreads="150" SSLEnabled="true">
+    <SSLHostConfig>
+        <Certificate certificateKeystoreFile="/path/to/${domain}.jks"
+                    certificateKeystorePassword="changeit"
+                    certificateKeystoreType="JKS" />
+    </SSLHostConfig>
+</Connector>
+
+验证 JKS 文件
+=============
+
+查看 JKS 文件内容：
+keytool -list -v -keystore ${domain}.jks -storepass changeit
+
+⚠️  安全提示：
+- 务必为 JKS 文件设置强密码
+- 生产环境中使用 600 权限保护文件：chmod 600 ${domain}.jks
+- 不要将包含私钥的文件提交到版本控制系统
+`;
 }
