@@ -9,7 +9,10 @@ const AppState = {
     // 验证数据（在整个流程中保持不变）
     challengeFilename: '',
     challengeContent: '',
-    dnsValue: ''
+    dnsValue: '',
+    // SSL证书信息
+    sslCertInfo: null,
+    certDaysRemaining: null
 };
 
 // ==================== 初始化 ====================
@@ -35,6 +38,9 @@ function initializeApp() {
 
     // 初始化域名历史记录功能
     initializeDomainHistory();
+
+    // 绑定域名输入框实时检测
+    bindDomainInputChange();
 }
 
 // ==================== 步骤导航 ====================
@@ -42,6 +48,13 @@ function nextStep(currentStep) {
     // 验证当前步骤
     if (!validateStep(currentStep)) {
         return;
+    }
+
+    // 步骤1特殊处理：检查证书有效期
+    if (currentStep === 1 && AppState.certDaysRemaining !== null && AppState.certDaysRemaining > 10) {
+        if (!confirm(`当前证书还有 ${AppState.certDaysRemaining} 天到期，距离过期还早。\n\n是否确定要重新申请证书？`)) {
+            return;
+        }
     }
 
     // 隐藏当前步骤
@@ -302,6 +315,9 @@ function displayInstallationGuide() {
 
         // 替换域名占位符
         updateDomainDisplay();
+
+        // 生成证书文件下载列表
+        generateCertificateFilesList(selectedFormat);
     }
 
     // 更新验证方式名称
@@ -310,6 +326,145 @@ function displayInstallationGuide() {
         'dns': 'DNS 解析验证（DNS-01）'
     };
     methodNameEl.textContent = methodNames[AppState.verificationMethod] || AppState.verificationMethod;
+}
+
+// ==================== 生成证书文件下载列表 ====================
+function generateCertificateFilesList(format) {
+    const filesListContainer = document.getElementById('cert-files-list');
+    if (!filesListContainer) return;
+
+    const domain = AppState.domain || 'example.com';
+
+    // 生成文件列表HTML
+    const filesHtml = format.files.map(file => {
+        // 生成模拟的证书内容
+        const certContent = generateMockCertificateContent(file.name, domain);
+
+        return `
+            <div class="cert-file-item">
+                <div class="cert-file-info">
+                    <div class="cert-file-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div class="cert-file-details">
+                        <div class="cert-file-name">${file.name}</div>
+                        <div class="cert-file-desc">${file.description}</div>
+                    </div>
+                </div>
+                <button class="btn btn-secondary btn-download" onclick="downloadCertificateFile('${file.name}', \`${certContent}\`)">
+                    下载
+                </button>
+            </div>
+        `;
+    }).join('');
+
+    filesListContainer.innerHTML = filesHtml;
+}
+
+// ==================== 生成模拟证书内容 ====================
+function generateMockCertificateContent(fileName, domain) {
+    const timestamp = new Date().toISOString();
+
+    if (fileName.includes('.crt') || fileName.includes('.pem') || fileName === 'fullchain.pem') {
+        return `-----BEGIN CERTIFICATE-----
+MIIFXTCCBEWgAwIBAgISA1234567890ABCDEFGHIJK1234567890
+MQ0wDQYJKoZIhvcNAQELBQAwLjEsMCoGA1UEAxMjRmFrZSBMRSBJbnRlcm1lZGlh
+dGUgWDEwDQYJKoZIhvcNAQELBQADggEBAGz+6w9TknN6V5sSKq5MU3Bg9MKa7Qcd
+... (省略证书内容)
+Generated for: ${domain}
+Generated at: ${timestamp}
+-----END CERTIFICATE-----`;
+    } else if (fileName.includes('.key')) {
+        return `-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC1234567890ABC
+DEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEF
+... (省略私钥内容)
+Generated for: ${domain}
+Generated at: ${timestamp}
+-----END PRIVATE KEY-----`;
+    } else if (fileName.includes('.csr')) {
+        return `-----BEGIN CERTIFICATE REQUEST-----
+MIICvDCCAaQCAQAwdzELMAkGA1UEBhMCVVMxETAPBgNVBAgMCENvbG9yYWRvMQ8w
+... (省略CSR内容)
+Generated for: ${domain}
+Generated at: ${timestamp}
+-----END CERTIFICATE REQUEST-----`;
+    } else if (fileName.includes('.pfx') || fileName.includes('.p12')) {
+        return `[Binary PFX/P12 Certificate File]
+This is a binary format certificate file.
+Generated for: ${domain}
+Generated at: ${timestamp}`;
+    } else {
+        return `[Certificate File: ${fileName}]
+Generated for: ${domain}
+Generated at: ${timestamp}
+
+This is a mock certificate file for demonstration purposes.`;
+    }
+}
+
+// ==================== 下载单个证书文件 ====================
+function downloadCertificateFile(fileName, content) {
+    // 创建Blob对象
+    const blob = new Blob([content], { type: 'text/plain' });
+
+    // 创建下载链接
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+
+    // 清理
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+// ==================== 下载所有证书文件（ZIP）====================
+async function downloadAllCertificates() {
+    const certFormatsData = JSON.parse(document.getElementById('cert-formats-data').textContent);
+    const selectedFormat = certFormatsData.formats.find(f => f.id === AppState.certFormat);
+
+    if (!selectedFormat) {
+        alert('未找到证书格式信息');
+        return;
+    }
+
+    const domain = AppState.domain || 'example.com';
+
+    // 这里需要使用JSZip库来创建ZIP文件
+    // 由于是演示项目，我们简化为提示用户
+    const fileList = selectedFormat.files.map(f => f.name).join('\n- ');
+
+    alert(`证书打包下载功能\n\n将打包以下文件：\n- ${fileList}\n\n注意：实际项目中需要集成JSZip库来实现ZIP打包功能。\n\n当前为演示版本，请使用单个文件下载按钮。`);
+
+    // 实际项目中的实现示例：
+    /*
+    // 需要先引入JSZip库: <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    const zip = new JSZip();
+    const folder = zip.folder(domain);
+
+    // 添加所有证书文件到ZIP
+    selectedFormat.files.forEach(file => {
+        const content = generateMockCertificateContent(file.name, domain);
+        folder.file(file.name, content);
+    });
+
+    // 生成ZIP文件并下载
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const url = window.URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${domain}-certificates.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    */
 }
 
 // ==================== Markdown 转 HTML（简单实现）====================
@@ -684,6 +839,171 @@ function toggleNginxExamples() {
         examplesContainer.style.display = 'none';
         toggleBtn.classList.remove('active');
         toggleBtn.title = '查看完整配置示例';
+    }
+}
+
+// ==================== 域名输入实时检测 ====================
+function bindDomainInputChange() {
+    const domainInput = document.getElementById('domain-input');
+    let debounceTimer = null;
+
+    domainInput.addEventListener('input', function() {
+        const domain = this.value.trim();
+
+        // 清除之前的定时器
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+
+        // 清空证书信息
+        const certInfoBox = document.getElementById('ssl-cert-info');
+        if (certInfoBox) {
+            certInfoBox.style.display = 'none';
+        }
+        AppState.sslCertInfo = null;
+        AppState.certDaysRemaining = null;
+
+        // 如果域名为空，不检测
+        if (!domain) {
+            return;
+        }
+
+        // 简单的域名格式验证
+        const domainRegex = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+        if (!domainRegex.test(domain)) {
+            return;
+        }
+
+        // 防抖：500ms后执行检测
+        debounceTimer = setTimeout(() => {
+            checkSSLCertificate(domain);
+        }, 500);
+    });
+}
+
+// ==================== SSL证书检测 ====================
+async function checkSSLCertificate(domain) {
+    // 通配符域名不检测
+    if (domain.startsWith('*.')) {
+        return;
+    }
+
+    const certInfoBox = document.getElementById('ssl-cert-info');
+    const certIssuerEl = document.getElementById('cert-issuer');
+    const certExpiryEl = document.getElementById('cert-expiry');
+    const certDaysEl = document.getElementById('cert-days');
+
+    try {
+        // 显示加载状态
+        certInfoBox.style.display = 'block';
+        certIssuerEl.textContent = '检测中...';
+        certExpiryEl.textContent = '检测中...';
+        certDaysEl.textContent = '检测中...';
+        certDaysEl.className = 'cert-value cert-days';
+
+        // 由于浏览器安全限制，无法直接获取SSL证书信息
+        // 这里使用模拟数据作为演示
+        // 实际项目中需要：
+        // 1. 后端API：创建一个API端点来检查SSL证书
+        // 2. 或使用第三方服务：如 SSL Labs API
+
+        console.log('正在检测域名:', domain);
+        const certInfo = await mockSSLCertCheck(domain);
+
+        if (certInfo) {
+            AppState.sslCertInfo = certInfo;
+            AppState.certDaysRemaining = certInfo.daysRemaining;
+
+            certIssuerEl.textContent = certInfo.issuer;
+            certExpiryEl.textContent = certInfo.expiryDate;
+            certDaysEl.textContent = `${certInfo.daysRemaining} 天`;
+
+            // 根据剩余天数设置颜色
+            if (certInfo.daysRemaining < 7) {
+                certDaysEl.className = 'cert-value cert-days cert-danger';
+            } else if (certInfo.daysRemaining < 30) {
+                certDaysEl.className = 'cert-value cert-days cert-warning';
+            } else {
+                certDaysEl.className = 'cert-value cert-days cert-success';
+            }
+
+            certInfoBox.style.display = 'block';
+        } else {
+            // 未检测到证书
+            certInfoBox.style.display = 'none';
+            AppState.sslCertInfo = null;
+            AppState.certDaysRemaining = null;
+        }
+    } catch (error) {
+        // 检测失败（可能是没有SSL证书或网络问题）
+        console.log('SSL证书检测失败，使用模拟数据:', error.message);
+
+        // 即使失败也尝试使用模拟数据
+        try {
+            const certInfo = await mockSSLCertCheck(domain);
+            if (certInfo) {
+                AppState.sslCertInfo = certInfo;
+                AppState.certDaysRemaining = certInfo.daysRemaining;
+
+                certIssuerEl.textContent = certInfo.issuer;
+                certExpiryEl.textContent = certInfo.expiryDate;
+                certDaysEl.textContent = `${certInfo.daysRemaining} 天`;
+
+                if (certInfo.daysRemaining < 7) {
+                    certDaysEl.className = 'cert-value cert-days cert-danger';
+                } else if (certInfo.daysRemaining < 30) {
+                    certDaysEl.className = 'cert-value cert-days cert-warning';
+                } else {
+                    certDaysEl.className = 'cert-value cert-days cert-success';
+                }
+
+                certInfoBox.style.display = 'block';
+            } else {
+                certInfoBox.style.display = 'none';
+                AppState.sslCertInfo = null;
+                AppState.certDaysRemaining = null;
+            }
+        } catch (e) {
+            certInfoBox.style.display = 'none';
+            AppState.sslCertInfo = null;
+            AppState.certDaysRemaining = null;
+        }
+    }
+}
+
+// 模拟SSL证书检测（实际环境中需要后端API支持）
+async function mockSSLCertCheck(domain) {
+    // 模拟网络延迟
+    await sleep(1200);
+
+    // 根据域名生成确定性的模拟数据（同一个域名总是返回相同的结果）
+    const hash = simpleHash(domain);
+    const shouldHaveCert = hash % 10 >= 3; // 70%概率有证书
+
+    if (shouldHaveCert) {
+        // 使用哈希值生成确定性的剩余天数
+        const daysOptions = [5, 12, 18, 25, 35, 48, 60, 75, 82];
+        const daysRemaining = daysOptions[hash % daysOptions.length];
+
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + daysRemaining);
+
+        // 根据域名选择不同的颁发者
+        const issuers = ["Let's Encrypt", "ZeroSSL", "DigiCert"];
+        const issuer = issuers[hash % issuers.length];
+
+        return {
+            issuer: issuer,
+            expiryDate: expiryDate.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }),
+            daysRemaining: daysRemaining
+        };
+    } else {
+        // 30%概率未检测到证书
+        return null;
     }
 }
 

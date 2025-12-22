@@ -1562,3 +1562,224 @@ body {
         font-size: 0.75rem;
     }
 }
+
+/* ==================== SSL证书信息显示 ==================== */
+.ssl-cert-info {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-lg);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: var(--border-radius);
+    color: white;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.cert-info-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.cert-info-header svg {
+    flex-shrink: 0;
+}
+
+.cert-info-title {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    flex: 1;
+}
+
+.cert-info-badge {
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.cert-info-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+}
+
+.cert-info-note {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.cert-info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-xs) 0;
+}
+
+.cert-label {
+    font-weight: 500;
+    opacity: 0.9;
+}
+
+.cert-value {
+    font-weight: 600;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.cert-days.cert-success {
+    color: #86efac;
+}
+
+.cert-days.cert-warning {
+    color: #fcd34d;
+}
+
+.cert-days.cert-danger {
+    color: #fca5a5;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+@media (max-width: 768px) {
+    .cert-info-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+}
+
+/* ==================== 证书下载区域 ==================== */
+.cert-download-box {
+    background: var(--bg-secondary);
+    padding: var(--spacing-xl);
+    border-radius: var(--border-radius);
+    margin: var(--spacing-xl) 0;
+    border: 2px solid var(--border-color);
+}
+
+.cert-download-box h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    color: var(--text-primary);
+}
+
+.cert-download-box h3 svg {
+    color: var(--primary-color);
+}
+
+.download-description {
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-lg);
+}
+
+.cert-files-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.cert-file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md);
+    background: white;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    transition: all 0.2s ease;
+}
+
+.cert-file-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-md);
+}
+
+.cert-file-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    flex: 1;
+}
+
+.cert-file-icon {
+    flex-shrink: 0;
+    color: var(--primary-color);
+}
+
+.cert-file-details {
+    flex: 1;
+}
+
+.cert-file-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.cert-file-desc {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.btn-download {
+    flex-shrink: 0;
+    min-width: 80px;
+}
+
+.download-all-section {
+    text-align: center;
+    padding-top: var(--spacing-lg);
+    border-top: 2px solid var(--border-color);
+}
+
+.btn-download-all {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-xl);
+}
+
+.btn-download-all svg {
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .cert-file-item {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    .cert-file-info {
+        width: 100%;
+    }
+
+    .btn-download {
+        width: 100%;
+    }
+
+    .btn-download-all {
+        width: 100%;
+        justify-content: center;
+    }
+}
+

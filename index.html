@@ -37,6 +37,35 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                 </div>
                 <p class="input-hint">支持格式：example.com、www.example.com、*.example.com</p>
                 <p class="error-message" id="domain-error" style="display: none;"></p>
+
+                <!-- SSL证书有效期检测结果 -->
+                <div class="ssl-cert-info" id="ssl-cert-info" style="display: none;">
+                    <div class="cert-info-header">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" stroke="currentColor" stroke-width="2" fill="none"/>
+                            <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="cert-info-title">SSL证书信息</span>
+                        <span class="cert-info-badge">演示</span>
+                    </div>
+                    <div class="cert-info-content">
+                        <div class="cert-info-item">
+                            <span class="cert-label">颁发者：</span>
+                            <span class="cert-value" id="cert-issuer">-</span>
+                        </div>
+                        <div class="cert-info-item">
+                            <span class="cert-label">有效期至：</span>
+                            <span class="cert-value" id="cert-expiry">-</span>
+                        </div>
+                        <div class="cert-info-item">
+                            <span class="cert-label">剩余天数：</span>
+                            <span class="cert-value cert-days" id="cert-days">-</span>
+                        </div>
+                    </div>
+                    <div class="cert-info-note">
+                        💡 提示：由于浏览器安全限制，当前显示的是模拟数据。实际项目中需要后端API支持来获取真实的SSL证书信息。
+                    </div>
+                </div>
             </div>
 
             <div class="form-group">
@@ -288,6 +317,34 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                 <p>域名：<strong><span class="domain-display"></span></strong></p>
                 <p>验证方式：<strong><span id="selected-method-name"></span></strong></p>
                 <p>证书格式：<strong><span id="selected-format-display"></span></strong></p>
+            </div>
+
+            <!-- 证书下载区域 -->
+            <div class="cert-download-box">
+                <h3>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <polyline points="7 10 12 15 17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    下载证书文件
+                </h3>
+                <p class="download-description">根据您选择的格式，下载相应的证书文件</p>
+
+                <div class="cert-files-list" id="cert-files-list">
+                    <!-- 证书文件列表将动态生成 -->
+                </div>
+
+                <div class="download-all-section">
+                    <button class="btn btn-primary btn-download-all" onclick="downloadAllCertificates()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <polyline points="7 10 12 15 17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        下载所有证书文件（ZIP）
+                    </button>
+                </div>
             </div>
 
             <div class="installation-guide" id="installation-guide">
