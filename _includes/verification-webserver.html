@@ -302,7 +302,7 @@ tail -f /var/log/nginx/error.log</code></pre>
             <li>验证文件需要通过 HTTP（非 HTTPS）访问</li>
             <li>验证文件无需扩展名</li>
             <li><strong>多域名场景：</strong>多个域名可以共用同一个 <code>/.well-known/acme-challenge/</code> 目录，因为每个域名的验证文件名都是唯一的随机字符串，不会冲突</li>
-            <li><strong>目录权限：</strong>确保 nginx/apache 用户对 <code>/.well-known/acme-challenge/</code> 目录有读取权限</li>
+            <li><strong>目录权限：</strong>确保 nginx/apache 用户对 <code>/.well-known/acme-challenge/</code> 目录有读取权限 <code> chmod -R 755 /.well-known/acme-challenge/</code></li>
         </ul>
     </div>
 </div>

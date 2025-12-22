@@ -220,6 +220,7 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                     <p><strong>Web 服务器验证：</strong>系统会尝试通过 HTTP 访问验证文件。</p>
                     <p><strong>DNS 验证：</strong>系统会查询 DNS TXT 记录（使用公共 DNS 服务器）。</p>
                     <p class="note">注意：由于浏览器的 CORS 限制，HTTP 验证可能无法直接执行。DNS 验证可通过 DoH (DNS over HTTPS) 实现。</p>
+                    <p class="note">确保权限<code> chmod -R 755 /.well-known/acme-challenge/</code></p>
                 </div>
             </div>
 
