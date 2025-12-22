@@ -6,6 +6,11 @@ gem "jekyll", "~> 4.3.3"
 # 主题
 gem "minima", "~> 2.5"
 
+# Ruby 3.4+ 需要的标准库（不再是默认 gem）
+gem "csv"
+gem "logger"
+gem "base64"
+
 # 插件
 group :jekyll_plugins do
   gem "jekyll-feed", "~> 0.12"
@@ -18,8 +23,8 @@ platforms :mingw, :x64_mingw, :mswin, :jruby do
   gem "tzinfo-data"
 end
 
-# 性能优化
-gem "wdm", "~> 0.1.1", :platforms => [:mingw, :x64_mingw, :mswin]
+# 性能优化（Ruby 3.4+ 使用 wdm 0.2.0）
+gem "wdm", ">= 0.1.0", :platforms => [:mingw, :x64_mingw, :mswin]
 
 # HTTP 服务器
 gem "webrick", "~> 1.8"

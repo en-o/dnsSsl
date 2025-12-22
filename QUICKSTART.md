@@ -1,5 +1,15 @@
 # 快速启动指南
 
+## 源处理
+```shell
+  # 切换回官方源
+  bundle config unset mirror.https://rubygems.org
+  # 或使用阿里云镜像
+  bundle config mirror.https://rubygems.org https://mirrors.aliyun.com/rubygems/
+  # 或使用 Ruby China 镜像
+  bundle config mirror.https://rubygems.org https://gems.ruby-china.com
+```
+
 ## Windows 环境
 
 ### 安装 Ruby 和 Jekyll
