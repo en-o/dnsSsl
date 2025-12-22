@@ -759,6 +759,9 @@ function selectDomainFromHistory(domain) {
     if (domainInput) {
         domainInput.value = domain;
         domainInput.focus();
+
+        // 触发SSL证书检测
+        checkSSLCertificate(domain);
     }
 
     // 隐藏历史记录面板
@@ -903,9 +906,8 @@ async function checkSSLCertificate(domain) {
 
         console.log('正在检测域名:', domain);
 
-        // 使用第三方API检测SSL证书
-        // 方案1: 使用 crt.sh 的透明度日志查询（免费，无需API Key）
-        const certInfo = await checkSSLViaTransparencyLog(domain);
+        // 使用竞速策略：同时请求多个API，谁快用谁
+        const certInfo = await checkSSLWithRace(domain);
 
         if (certInfo) {
             AppState.sslCertInfo = certInfo;
@@ -939,7 +941,130 @@ async function checkSSLCertificate(domain) {
     }
 }
 
-// 通过证书透明度日志检测SSL证书
+// 竞速策略：同时请求多个API，使用最快的响应
+async function checkSSLWithRace(domain) {
+    const timeout = 8000; // 8秒超时
+
+    // 创建超时Promise
+    const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('请求超时')), timeout);
+    });
+
+    // 同时发起多个请求，谁先成功就用谁
+    const promises = [
+        checkSSLViaMySSL(domain),           // 国内服务，速度快
+        checkSSLViaChinazSSL(domain),       // 站长工具SSL检测
+        checkSSLViaTransparencyLog(domain), // crt.sh（国外，可能慢）
+    ];
+
+    try {
+        // Promise.race：返回第一个成功的结果
+        const result = await Promise.race([
+            Promise.race(promises.map(p => p.catch(e => {
+                console.log('某个API失败:', e.message);
+                return null;
+            }))),
+            timeoutPromise
+        ]);
+
+        // 如果第一个结果为null，尝试等待其他结果
+        if (result) {
+            return result;
+        }
+
+        // 等待所有结果
+        const results = await Promise.allSettled(promises);
+        const successResult = results.find(r => r.status === 'fulfilled' && r.value);
+        return successResult ? successResult.value : null;
+    } catch (error) {
+        console.log('所有API都失败了:', error.message);
+        return null;
+    }
+}
+
+// 方案1：使用 MySSL API（国内，速度快）
+async function checkSSLViaMySSL(domain) {
+    try {
+        // MySSL 提供免费的SSL检测API（国内访问快）
+        const response = await fetch(`https://myssl.com/api/v1/tools/cert_decode?domain=${encodeURIComponent(domain)}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('MySSL API 请求失败');
+        }
+
+        const data = await response.json();
+
+        if (data.code === 0 && data.data) {
+            const cert = data.data;
+            const expiryDate = new Date(cert.not_after * 1000);
+            const today = new Date();
+            const daysRemaining = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+
+            return {
+                issuer: cert.issuer_cn || cert.issuer_o || 'Unknown CA',
+                expiryDate: expiryDate.toLocaleDateString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }),
+                daysRemaining: daysRemaining
+            };
+        }
+
+        throw new Error('MySSL API 返回数据格式错误');
+    } catch (error) {
+        console.log('MySSL 查询失败:', error.message);
+        throw error;
+    }
+}
+
+// 方案2：使用站长工具SSL检测（国内，速度较快）
+async function checkSSLViaChinazSSL(domain) {
+    try {
+        // 使用站长工具的SSL查询接口
+        const response = await fetch(`https://sslapi.chinaz.com/ChinazAPI/SSLInfo?domain=${encodeURIComponent(domain)}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('站长工具 API 请求失败');
+        }
+
+        const data = await response.json();
+
+        if (data.StateCode === 1 && data.Result) {
+            const cert = data.Result;
+            const expiryDate = new Date(cert.EndTime);
+            const today = new Date();
+            const daysRemaining = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+
+            return {
+                issuer: cert.IssuerName || 'Unknown CA',
+                expiryDate: expiryDate.toLocaleDateString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }),
+                daysRemaining: daysRemaining
+            };
+        }
+
+        throw new Error('站长工具 API 返回数据格式错误');
+    } catch (error) {
+        console.log('站长工具查询失败:', error.message);
+        throw error;
+    }
+}
+
+// 方案3：通过证书透明度日志检测SSL证书（原方案，保留作为后备）
 async function checkSSLViaTransparencyLog(domain) {
     try {
         // 使用 crt.sh API 查询证书透明度日志
@@ -957,8 +1082,7 @@ async function checkSSLViaTransparencyLog(domain) {
         const certificates = await response.json();
 
         if (!certificates || certificates.length === 0) {
-            // 尝试使用备用方案：直接解析证书
-            return await checkSSLViaSSLLabs(domain);
+            throw new Error('未找到证书');
         }
 
         // 找到最新的有效证书
@@ -970,7 +1094,7 @@ async function checkSSLViaTransparencyLog(domain) {
             .sort((a, b) => new Date(b.not_after) - new Date(a.not_after));
 
         if (validCerts.length === 0) {
-            return null;
+            throw new Error('没有有效证书');
         }
 
         const latestCert = validCerts[0];
@@ -1005,57 +1129,10 @@ async function checkSSLViaTransparencyLog(domain) {
             daysRemaining: daysRemaining
         };
     } catch (error) {
-        console.log('crt.sh 查询失败，尝试备用方案:', error.message);
-        // 使用备用方案
-        return await checkSSLViaSSLLabs(domain);
+        console.log('crt.sh 查询失败:', error.message);
+        throw error;
     }
 }
 
-// 备用方案：使用 SSL Labs API（更慢但更准确）
-async function checkSSLViaSSLLabs(domain) {
-    try {
-        // SSL Labs API 需要先发起分析请求，然后轮询结果
-        // 这里使用简化版本：直接获取缓存的结果
-        const response = await fetch(`https://api.ssllabs.com/api/v3/getEndpointData?host=${encodeURIComponent(domain)}&fromCache=on`, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error('SSL Labs 查询失败');
-        }
-
-        const data = await response.json();
-
-        if (data.statusMessage && data.statusMessage !== 'Ready') {
-            console.log('SSL Labs 分析未就绪');
-            return null;
-        }
-
-        // 解析证书信息
-        if (data.certs && data.certs.length > 0) {
-            const cert = data.certs[0];
-            const expiryDate = new Date(cert.notAfter);
-            const today = new Date();
-            const daysRemaining = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
-
-            return {
-                issuer: cert.issuerLabel || 'Unknown CA',
-                expiryDate: expiryDate.toLocaleDateString('zh-CN', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit'
-                }),
-                daysRemaining: daysRemaining
-            };
-        }
-
-        return null;
-    } catch (error) {
-        console.log('SSL Labs 查询失败:', error.message);
-        return null;
-    }
-}
+// 移除SSL Labs方案（太慢）
 
