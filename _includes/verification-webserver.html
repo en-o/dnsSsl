@@ -13,6 +13,7 @@
 
     <div class="method-description">
         <p>通过在您的 Web 服务器上放置验证文件来证明域名所有权。适用于有公网可访问 Web 服务器的场景。</p>
+        <p style="color: red">配置完成后一定要使其生效比如【nginx -s reload】重新加载nginx</p>
     </div>
 
     <div class="method-steps">
@@ -29,7 +30,15 @@
                 <pre><code>echo "验证内容" > /var/www/html/.well-known/acme-challenge/验证文件名</code></pre>
             </li>
             <li>
-                <strong>配置 Nginx（示例）：</strong>
+                <strong>配置 Nginx（示例）：
+                    <button type="button" class="help-toggle-btn" onclick="toggleNginxExamples()" title="查看完整配置示例">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 16V12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="12" cy="8" r="1" fill="currentColor"/>
+                        </svg>
+                    </button>
+                </strong>
                 <pre><code>server {
     listen 80;
     server_name <span class="domain-placeholder">example.com</span>;
@@ -39,6 +48,128 @@
         try_files $uri =404;
     }
 }</code></pre>
+
+                <!-- 完整配置示例（可展开） -->
+                <div class="nginx-examples-container" id="nginx-examples" style="display: none;">
+                    <div class="example-header">
+                        <h5>完整 Nginx 配置示例</h5>
+                    </div>
+
+                    <div class="example-section">
+                        <h6>场景 1：标准静态站点配置</h6>
+                        <pre><code>server {
+    listen 80;
+    server_name <span class="domain-placeholder">example.com</span>;
+    root /var/www/html;
+
+    # 确保 ACME 验证路径可访问
+    location /.well-known/acme-challenge/ {
+        try_files $uri =404;
+    }
+}</code></pre>
+                    </div>
+
+                    <div class="example-section">
+                        <h6>场景 2：反向代理配置（推荐）</h6>
+                        <p class="example-note">适用于使用 nginx 作为反向代理，所有请求都通过 proxy_pass 转发的场景</p>
+                        <pre><code>server {
+    listen 80;
+    server_name <span class="domain-placeholder">example.com</span>;
+
+    # ✅ ACME 验证路径 - 使用 ^~ 优先匹配，防止被其他规则拦截
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/html;
+        try_files $uri =404;
+    }
+
+    # 其他请求转发到后端
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}</code></pre>
+                    </div>
+
+                    <div class="example-section example-important">
+                        <h6>⚠️ 场景 3：HTTP 自动跳转 HTTPS（最常见且易错）</h6>
+                        <p class="example-note error">很多生产环境会配置 HTTP 自动跳转到 HTTPS，这会导致 ACME 验证失败！</p>
+
+                        <div class="example-wrong">
+                            <p><strong>❌ 错误配置（会导致验证失败）：</strong></p>
+                            <pre><code>server {
+    listen 80;
+    server_name <span class="domain-placeholder">example.com</span>;
+
+    # ❌ 所有请求都重定向到 HTTPS，Let's Encrypt 无法访问验证文件
+    rewrite ^(.*) https://$server_name$1 permanent;
+}</code></pre>
+                        </div>
+
+                        <div class="example-correct">
+                            <p><strong>✅ 正确配置（推荐）：</strong></p>
+                            <pre><code>server {
+    listen 443 ssl;
+    server_name <span class="domain-placeholder">example.com</span>;
+    ssl_certificate /path/to/<span class="domain-placeholder">example.com</span>.pem;
+    ssl_certificate_key /path/to/<span class="domain-placeholder">example.com</span>.key;
+
+    location / {
+        # 你的应用配置
+        proxy_pass http://localhost:8080/;
+    }
+}
+
+server {
+    listen 80;
+    server_name <span class="domain-placeholder">example.com</span>;
+
+    # ✅ ACME 验证路径（使用 ^~ 优先匹配，必须在 rewrite 之前）
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/html;
+        try_files $uri =404;
+    }
+
+    # ✅ 其他请求重定向到 HTTPS（放在 location / 中）
+    location / {
+        rewrite ^(.*) https://$server_name$1 permanent;
+    }
+}</code></pre>
+                        </div>
+
+                        <div class="example-tips">
+                            <p><strong>配置说明：</strong></p>
+                            <ul>
+                                <li><code>^~</code> 表示优先匹配，优先级高于正则和普通 location</li>
+                                <li><strong>关键：</strong><code>.well-known</code> location 必须在 <code>location /</code> 之前或使用 <code>^~</code> 提高优先级</li>
+                                <li>只有 <code>/.well-known/acme-challenge/</code> 路径不重定向</li>
+                                <li>其他所有请求仍然重定向到 HTTPS</li>
+                            </ul>
+                        </div>
+
+                        <div class="example-verify">
+                            <p><strong>验证配置是否正确：</strong></p>
+                            <pre><code># 1. 创建测试文件
+mkdir -p /var/www/html/.well-known/acme-challenge
+echo "test" > /var/www/html/.well-known/acme-challenge/test.txt
+
+# 2. 重载 nginx 配置
+nginx -t && nginx -s reload
+
+# 3. 测试 HTTP 访问（应该返回 "test"，HTTP 200，不应该重定向）
+curl -v http://<span class="domain-placeholder">example.com</span>/.well-known/acme-challenge/test.txt
+
+# 预期结果：
+# &lt; HTTP/1.1 200 OK
+# test
+
+# 4. 如果看到 301/302 或 https://，说明配置有问题
+# 5. 如果返回 404，检查 root 路径
+# 6. 清理测试文件
+rm /var/www/html/.well-known/acme-challenge/test.txt</code></pre>
+                        </div>
+                    </div>
+                </div>
             </li>
             <li>
                 <strong>配置 Apache（示例）：</strong>

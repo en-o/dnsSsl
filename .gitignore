@@ -52,3 +52,4 @@ yarn-error.log
 /CHANGELOG_DOMAIN_HISTORY.md
 /CHANGELOG_VERIFICATION_FIX.md
 /CHANGELOG_DNS_INSTRUCTION.md
+/.claude/settings.local.json

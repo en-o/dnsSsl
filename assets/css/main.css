@@ -1351,3 +1351,214 @@ body {
         margin-bottom: var(--spacing-xs);
     }
 }
+
+/* ==================== Nginx 完整配置示例样式 ==================== */
+
+/* 帮助按钮 */
+.help-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    margin-left: var(--spacing-xs);
+    background: var(--info-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    vertical-align: middle;
+}
+
+.help-toggle-btn:hover {
+    background: var(--primary-color);
+    transform: scale(1.1);
+}
+
+.help-toggle-btn.active {
+    background: var(--primary-hover);
+}
+
+.help-toggle-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Nginx 示例容器 */
+.nginx-examples-container {
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    background: #fefce8;
+    border: 2px solid var(--warning-color);
+    border-radius: var(--border-radius);
+    animation: fadeIn 0.3s ease-out;
+}
+
+.nginx-examples-container .example-header {
+    margin-bottom: var(--spacing-lg);
+}
+
+.nginx-examples-container .example-header h5 {
+    color: #92400e;
+    font-size: 1.125rem;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+/* 示例区块 */
+.example-section {
+    margin-bottom: var(--spacing-xl);
+    padding: var(--spacing-lg);
+    background: white;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.example-section:last-child {
+    margin-bottom: 0;
+}
+
+.example-section h6 {
+    margin: 0 0 var(--spacing-md) 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.example-section.example-important {
+    border: 2px solid var(--warning-color);
+    background: #fffbeb;
+}
+
+.example-section.example-important h6 {
+    color: #92400e;
+}
+
+.example-note {
+    color: var(--text-secondary);
+    font-size: 0.9375rem;
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm);
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--info-color);
+    border-radius: 4px;
+}
+
+.example-note.error {
+    background: #fef2f2;
+    border-left-color: var(--danger-color);
+    color: #991b1b;
+}
+
+/* 错误配置 */
+.example-wrong {
+    margin: var(--spacing-md) 0;
+    padding: var(--spacing-md);
+    background: #fef2f2;
+    border-left: 4px solid var(--danger-color);
+    border-radius: 4px;
+}
+
+.example-wrong p {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: #991b1b;
+    font-weight: 600;
+}
+
+.example-wrong pre {
+    margin: var(--spacing-sm) 0 0 0;
+}
+
+/* 正确配置 */
+.example-correct {
+    margin: var(--spacing-md) 0;
+    padding: var(--spacing-md);
+    background: #f0fdf4;
+    border-left: 4px solid var(--success-color);
+    border-radius: 4px;
+}
+
+.example-correct p {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: #065f46;
+    font-weight: 600;
+}
+
+.example-correct pre {
+    margin: var(--spacing-sm) 0 0 0;
+}
+
+/* 配置说明 */
+.example-tips {
+    margin: var(--spacing-md) 0;
+    padding: var(--spacing-md);
+    background: #eff6ff;
+    border-left: 4px solid var(--info-color);
+    border-radius: 4px;
+}
+
+.example-tips p {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: #1e40af;
+    font-weight: 600;
+}
+
+.example-tips ul {
+    margin: 0;
+    padding-left: var(--spacing-lg);
+    list-style: disc;
+}
+
+.example-tips li {
+    margin-bottom: var(--spacing-xs);
+    color: #1e3a8a;
+}
+
+.example-tips li:last-child {
+    margin-bottom: 0;
+}
+
+.example-tips code {
+    background: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--primary-color);
+    font-size: 0.875rem;
+}
+
+/* 验证配置区块 */
+.example-verify {
+    margin: var(--spacing-md) 0 0 0;
+    padding: var(--spacing-md);
+    background: #faf5ff;
+    border-left: 4px solid #7c3aed;
+    border-radius: 4px;
+}
+
+.example-verify p {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: #5b21b6;
+    font-weight: 600;
+}
+
+.example-verify pre {
+    margin: var(--spacing-sm) 0 0 0;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+    .nginx-examples-container {
+        padding: var(--spacing-md);
+    }
+
+    .example-section {
+        padding: var(--spacing-md);
+    }
+
+    .example-section pre {
+        font-size: 0.75rem;
+    }
+}

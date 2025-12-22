@@ -671,3 +671,19 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ==================== Nginx 完整示例展开/收起 ====================
+function toggleNginxExamples() {
+    const examplesContainer = document.getElementById('nginx-examples');
+    const toggleBtn = event.currentTarget;
+
+    if (examplesContainer.style.display === 'none') {
+        examplesContainer.style.display = 'block';
+        toggleBtn.classList.add('active');
+        toggleBtn.title = '收起完整配置示例';
+    } else {
+        examplesContainer.style.display = 'none';
+        toggleBtn.classList.remove('active');
+        toggleBtn.title = '查看完整配置示例';
+    }
+}
+
