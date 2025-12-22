@@ -151,8 +151,11 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
 
             <div class="button-group">
                 <button class="btn btn-secondary" onclick="prevStep(2)">上一步</button>
-                <button class="btn btn-primary" onclick="nextStep(2)">下一步</button>
+                <button id="btn-next-step-2" class="btn btn-primary" onclick="nextStep(2)" disabled>下一步</button>
             </div>
+            <p id="step2-hint" class="step-hint" style="text-align: center; margin-top: 12px; font-size: 14px; color: #64748b;">
+                ⏳ 正在获取验证数据...
+            </p>
         </div>
     </div>
 

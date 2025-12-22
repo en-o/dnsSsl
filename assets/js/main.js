@@ -192,6 +192,20 @@ function validateVerificationMethod() {
         return false;
     }
     AppState.verificationMethod = selectedMethod.value;
+
+    // 检查是否已获取验证数据
+    if (selectedMethod.value === 'webserver') {
+        if (!AppState.challengeFilename || !AppState.challengeContent) {
+            alert('验证数据尚未获取完成，请稍候...');
+            return false;
+        }
+    } else if (selectedMethod.value === 'dns') {
+        if (!AppState.dnsValue) {
+            alert('DNS验证数据尚未获取完成，请稍候...');
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -238,12 +252,18 @@ function onStepEnter(step) {
             // 进入步骤2时获取 ACME 挑战数据（每次申请都会生成新的 token）
             // 注意：同一个 ACME 订单会同时提供 HTTP-01 和 DNS-01 两种挑战
             // 在当前申请流程中切换验证方式时，使用同一订单的不同挑战类型
+
+            // 禁用下一步按钮，等待获取验证数据
+            disableStep2NextButton();
+
             if (!AppState.acmeClient || !AppState.acmeOrderUrl) {
                 // 首次进入，创建新订单并获取挑战数据
                 showVerificationMethod(AppState.verificationMethod, true);
             } else {
                 // 已有订单，切换显示不同验证方式（使用同一订单的不同挑战类型）
                 showVerificationMethod(AppState.verificationMethod, false);
+                // 已有数据，直接启用按钮
+                enableStep2NextButton();
             }
             break;
         case 3:
@@ -306,12 +326,15 @@ function bindVerificationMethodChange() {
 function showVerificationMethod(method, fetchChallenge = true) {
     const detailsContainer = document.getElementById('verification-details');
 
+    console.log('[验证方式] 切换到:', method, ', 是否获取挑战数据:', fetchChallenge);
+
     if (method === 'webserver') {
         const template = document.getElementById('webserver-template');
         detailsContainer.innerHTML = template.innerHTML;
     } else if (method === 'dns') {
         const template = document.getElementById('dns-template');
         detailsContainer.innerHTML = template.innerHTML;
+        console.log('[验证方式] DNS模板已加载到页面');
     }
 
     // 同步单选按钮的选中状态
@@ -334,7 +357,30 @@ function showVerificationMethod(method, fetchChallenge = true) {
         }
     } else {
         // 切换验证方式时，使用已有的挑战数据更新 UI
-        updateVerificationDataUI(method);
+        // 使用 setTimeout 确保模板已完全渲染
+        setTimeout(() => {
+            console.log('[验证方式] 准备更新UI（延迟执行）');
+            updateVerificationDataUI(method);
+
+            // 检查当前验证方式的数据是否已获取，启用/禁用按钮
+            if (method === 'webserver') {
+                if (AppState.challengeFilename && AppState.challengeContent) {
+                    enableStep2NextButton();
+                    console.log('[切换] HTTP-01数据已存在，启用按钮');
+                } else {
+                    disableStep2NextButton('⏳ 正在获取验证数据，请稍候...');
+                    console.log('[切换] HTTP-01数据不存在，可能正在获取中');
+                }
+            } else if (method === 'dns') {
+                if (AppState.dnsValue) {
+                    enableStep2NextButton();
+                    console.log('[切换] DNS-01数据已存在，启用按钮');
+                } else {
+                    disableStep2NextButton('⏳ 正在获取验证数据，请稍候...');
+                    console.log('[切换] DNS-01数据不存在，可能正在获取中');
+                }
+            }
+        }, 100); // 延迟100ms，确保DOM已更新
     }
 }
 
@@ -378,6 +424,10 @@ async function getRealAcmeChallengeForStep2(method) {
         const authUrl = order.authorizations[0];
         const authorization = await acmeClient.getAuthorization(authUrl);
 
+        // 调试：显示授权信息
+        console.log('[Step2] 授权信息完整内容:', authorization);
+        console.log('[Step2] 可用的挑战类型:', authorization.challenges.map(c => c.type));
+
         // 保存 ACME 客户端和订单信息
         AppState.acmeClient = acmeClient;
         AppState.acmeOrderUrl = orderUrl;
@@ -386,12 +436,18 @@ async function getRealAcmeChallengeForStep2(method) {
         const http01Challenge = authorization.challenges.find(c => c.type === 'http-01');
         const dns01Challenge = authorization.challenges.find(c => c.type === 'dns-01');
 
+        console.log('[Step2] 找到 HTTP-01 挑战?', !!http01Challenge);
+        console.log('[Step2] 找到 DNS-01 挑战?', !!dns01Challenge);
+
         if (http01Challenge) {
             const challengeData = acmeClient.getHttp01ChallengeData(http01Challenge);
             AppState.challengeFilename = challengeData.filename;
             AppState.challengeContent = challengeData.content;
             AppState.http01ChallengeUrl = http01Challenge.url;
             console.log('[Step2] HTTP-01 挑战数据获取成功');
+            console.log('[Step2] HTTP-01 文件名:', challengeData.filename);
+        } else {
+            console.warn('[Step2] ⚠️ 未找到 HTTP-01 挑战类型');
         }
 
         if (dns01Challenge) {
@@ -399,12 +455,35 @@ async function getRealAcmeChallengeForStep2(method) {
             AppState.dnsValue = challengeData.value;
             AppState.dns01ChallengeUrl = dns01Challenge.url;
             console.log('[Step2] DNS-01 挑战数据获取成功');
+            console.log('[Step2] DNS-01 记录值:', challengeData.value);
+        } else {
+            console.warn('[Step2] ⚠️ 未找到 DNS-01 挑战类型');
         }
 
         console.log('[Step2] ✓ 真实 ACME 挑战数据已保存到 AppState');
 
         // 更新当前验证方式的 UI
         updateVerificationDataUI(method);
+
+        // 启用步骤2的下一步按钮
+        enableStep2NextButton();
+
+        // 重要：如果用户在异步获取过程中切换了验证方式，需要更新另一种验证方式的按钮状态
+        // 获取当前选中的验证方式
+        const currentMethod = document.querySelector('input[name="verification-method"]:checked')?.value;
+
+        // 如果当前选中的不是触发获取的方法，说明用户切换了验证方式
+        if (currentMethod && currentMethod !== method) {
+            console.log('[Step2] 检测到用户切换了验证方式，更新按钮状态');
+            // 检查切换后的验证方式数据是否已获取
+            if (currentMethod === 'dns' && AppState.dnsValue) {
+                enableStep2NextButton();
+                console.log('[Step2] DNS数据已就绪，启用按钮');
+            } else if (currentMethod === 'webserver' && AppState.challengeFilename && AppState.challengeContent) {
+                enableStep2NextButton();
+                console.log('[Step2] HTTP-01数据已就绪，启用按钮');
+            }
+        }
 
     } catch (error) {
         console.error('[Step2] 获取 ACME 挑战数据失败:', error);
@@ -439,11 +518,32 @@ function updateVerificationDataUI(method) {
         const dnsHostEl = document.getElementById('dns-host');
         const dnsValueEl = document.getElementById('dns-value');
 
+        // 生成完整的DNS主机记录：_acme-challenge.域名
+        const dnsHost = `_acme-challenge.${AppState.domain}`;
+
+        console.log('[DNS UI] 正在更新DNS UI');
+        console.log('[DNS UI] DNS主机记录:', dnsHost);
+        console.log('[DNS UI] AppState.dnsValue:', AppState.dnsValue);
+        console.log('[DNS UI] dnsHostEl 存在?', !!dnsHostEl);
+        console.log('[DNS UI] dnsValueEl 存在?', !!dnsValueEl);
+
         if (dnsHostEl) {
-            dnsHostEl.textContent = '_acme-challenge';
+            dnsHostEl.textContent = dnsHost;
+            console.log('[DNS UI] ✓ DNS主机记录已设置');
+        } else {
+            console.error('[DNS UI] ✗ 找不到 dns-host 元素');
         }
-        if (dnsValueEl && AppState.dnsValue) {
-            dnsValueEl.textContent = AppState.dnsValue;
+
+        if (dnsValueEl) {
+            if (AppState.dnsValue) {
+                dnsValueEl.textContent = AppState.dnsValue;
+                console.log('[DNS UI] ✓ DNS记录值已更新:', AppState.dnsValue);
+            } else {
+                dnsValueEl.textContent = '等待获取...';
+                console.warn('[DNS UI] ⚠️ AppState.dnsValue 为空，显示"等待获取..."');
+            }
+        } else {
+            console.error('[DNS UI] ✗ 找不到 dns-value 元素');
         }
     }
 }
@@ -478,9 +578,19 @@ function generateExampleVerificationData(method) {
         const dnsHostEl = document.getElementById('dns-host');
         const dnsValueEl = document.getElementById('dns-value');
 
-        if (dnsHostEl) dnsHostEl.textContent = '_acme-challenge';
-        if (dnsValueEl) dnsValueEl.textContent = AppState.dnsValue;
+        // 生成完整的DNS主机记录：_acme-challenge.域名
+        const dnsHost = `_acme-challenge.${domain}`;
+
+        if (dnsHostEl) {
+            dnsHostEl.textContent = dnsHost;
+        }
+        if (dnsValueEl) {
+            dnsValueEl.textContent = AppState.dnsValue;
+        }
     }
+
+    // 示例数据也启用下一步按钮
+    enableStep2NextButton();
 }
 
 // ==================== 证书格式切换 ====================
@@ -714,6 +824,36 @@ function generateRandomString(length) {
         result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return result;
+}
+
+// ==================== 步骤2按钮控制 ====================
+function enableStep2NextButton() {
+    const nextBtn = document.getElementById('btn-next-step-2');
+    const hint = document.getElementById('step2-hint');
+
+    if (nextBtn) {
+        nextBtn.disabled = false;
+        console.log('[Step2] 下一步按钮已启用');
+    }
+
+    if (hint) {
+        hint.style.display = 'none';
+    }
+}
+
+function disableStep2NextButton(message = '⏳ 正在获取验证数据...') {
+    const nextBtn = document.getElementById('btn-next-step-2');
+    const hint = document.getElementById('step2-hint');
+
+    if (nextBtn) {
+        nextBtn.disabled = true;
+    }
+
+    if (hint) {
+        hint.style.display = 'block';
+        hint.textContent = message;
+        hint.style.color = '#64748b';
+    }
 }
 
 // ==================== 平滑滚动 Polyfill ====================

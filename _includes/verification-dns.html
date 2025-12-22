@@ -47,6 +47,10 @@
             <li>
                 <strong>完整记录示例：</strong>
                 <pre><code>_acme-challenge.<span class="domain-placeholder">example.com</span>  IN  TXT  "验证字符串"</code></pre>
+                <p class="info-note" style="margin-top: 8px; padding: 8px; background: #f0f9ff; border-left: 3px solid #3b82f6; font-size: 14px;">
+                    💡 <strong>注意：</strong>主机记录需要填写完整的 <code>_acme-challenge.<span class="domain-placeholder">example.com</span></code><br>
+                    有些DNS服务商可能只需要填写 <code>_acme-challenge</code>（自动补全域名），请根据实际情况调整。
+                </p>
             </li>
             <li>
                 <strong>等待 DNS 解析生效：</strong>
