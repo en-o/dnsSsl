@@ -18,6 +18,36 @@ function prepareVerificationUI() {
     // 更新验证目标显示
     updateVerificationTarget();
 
+    // 显示或隐藏 DNS 服务商选择
+    const dnsProviderSelection = document.getElementById('dns-provider-selection');
+    if (dnsProviderSelection) {
+        if (AppState.verificationMethod === 'dns') {
+            dnsProviderSelection.style.display = 'block';
+        } else {
+            dnsProviderSelection.style.display = 'none';
+        }
+    }
+
+    // 显示或隐藏 DNS 记录添加说明
+    const dnsInstructionBox = document.getElementById('dns-instruction-box');
+    if (dnsInstructionBox) {
+        if (AppState.verificationMethod === 'dns') {
+            dnsInstructionBox.style.display = 'block';
+            // 更新说明框中的信息
+            const domain = AppState.domain || 'example.com';
+            const fullRecord = '_acme-challenge.' + domain;
+            const dnsValue = AppState.dnsValue || 'xxxxx';
+
+            const fullRecordEl = document.getElementById('dns-full-record');
+            const recordValueEl = document.getElementById('dns-record-value');
+
+            if (fullRecordEl) fullRecordEl.textContent = fullRecord;
+            if (recordValueEl) recordValueEl.textContent = dnsValue;
+        } else {
+            dnsInstructionBox.style.display = 'none';
+        }
+    }
+
     // 重置验证状态
     resetVerificationStatus();
 }
@@ -29,13 +59,15 @@ function updateVerificationTarget() {
     const valueEl = document.getElementById('verification-target-value');
 
     if (AppState.verificationMethod === 'webserver') {
-        const challengeFilename = document.getElementById('challenge-filename')?.textContent || 'xxxxxx';
+        // 使用 AppState 中保存的验证文件名
+        const challengeFilename = AppState.challengeFilename || 'xxxxxx';
         labelEl.textContent = '验证 URL：';
         valueEl.textContent = 'http://' + domain + '/.well-known/acme-challenge/' + challengeFilename;
     } else if (AppState.verificationMethod === 'dns') {
-        const dnsHost = document.getElementById('dns-host')?.textContent || '_acme-challenge';
+        const dnsHost = '_acme-challenge';
+        const fullDnsRecord = dnsHost + '.' + domain;
         labelEl.textContent = 'DNS 记录：';
-        valueEl.textContent = dnsHost + '.' + domain + ' (TXT)';
+        valueEl.innerHTML = '<strong>' + fullDnsRecord + '</strong> (TXT)';
     }
 }
 
@@ -85,8 +117,8 @@ async function startVerification() {
 // Web 服务器验证
 async function verifyWebServer() {
     const domain = AppState.domain;
-    const challengeFilename = document.getElementById('challenge-filename')?.textContent;
-    const challengeContent = document.getElementById('challenge-content')?.textContent;
+    const challengeFilename = AppState.challengeFilename;
+    const challengeContent = AppState.challengeContent;
 
     if (!challengeFilename || !challengeContent) {
         throw new Error('验证参数缺失');
@@ -99,37 +131,39 @@ async function verifyWebServer() {
     const shortContent = challengeContent.length > 20 ? challengeContent.substring(0, 20) + '...' : challengeContent;
     addLog('info', '预期内容: ' + shortContent);
 
-    try {
-        addLog('info', '正在尝试访问验证文件...');
+    addLog('info', '正在尝试访问验证文件...');
 
-        // 由于CORS限制，这里使用模拟验证
-        const simulateSuccess = Math.random() > 0.3; // 70%成功率
+    // 由于CORS限制，这里使用模拟验证
+    const simulateSuccess = Math.random() > 0.3; // 70%成功率
 
-        await sleep(2000); // 模拟网络请求
+    await sleep(2000); // 模拟网络请求
 
-        if (simulateSuccess) {
-            addLog('success', '✓ 成功访问验证文件');
-            addLog('success', '✓ 验证内容匹配');
-            addLog('success', '✓ Web 服务器验证通过！');
-            showVerificationStatus('success', '验证成功！', 'Web 服务器配置正确，可以继续下一步');
-            showContinueButton();
-        } else {
-            throw new Error('无法访问验证文件，请确认：\\n1. 域名解析正确\\n2. Web 服务器正在运行\\n3. 验证文件已正确放置\\n4. 防火墙允许 HTTP (80端口) 访问');
-        }
-    } catch (error) {
-        addLog('error', '✗ HTTP 请求失败: ' + error.message);
+    if (simulateSuccess) {
+        addLog('success', '✓ 成功访问验证文件');
+        addLog('success', '✓ 验证内容匹配');
+        addLog('success', '✓ Web 服务器验证通过！');
+        showVerificationStatus('success', '验证成功！', 'Web 服务器配置正确，可以继续下一步');
+        showContinueButton();
+    } else {
+        addLog('error', '✗ HTTP 请求失败: 无法访问验证文件');
         addLog('warning', '提示：由于浏览器CORS限制，此处为模拟验证结果');
         addLog('info', '请手动确认验证URL可访问：');
         addLog('info', verifyUrl);
-        throw error;
+        addLog('info', '');
+        addLog('warning', '请确认：');
+        addLog('info', '1. 域名解析正确');
+        addLog('info', '2. Web 服务器正在运行');
+        addLog('info', '3. 验证文件已正确放置');
+        addLog('info', '4. 防火墙允许 HTTP (80端口) 访问');
+        throw new Error('无法访问验证文件，请检查上述配置');
     }
 }
 
 // DNS 验证
 async function verifyDNS() {
     const domain = AppState.domain;
-    const dnsHost = document.getElementById('dns-host')?.textContent || '_acme-challenge';
-    const dnsValue = document.getElementById('dns-value')?.textContent;
+    const dnsHost = '_acme-challenge';
+    const dnsValue = AppState.dnsValue;
 
     if (!dnsValue) {
         throw new Error('DNS 验证值缺失');
@@ -137,19 +171,48 @@ async function verifyDNS() {
 
     const fullDomain = dnsHost + '.' + domain;
 
+    // 获取选择的 DNS 服务商
+    const selectedProvider = document.querySelector('input[name="dns-provider"]:checked');
+    const provider = selectedProvider ? selectedProvider.value : 'alidns';
+
+    const providerNames = {
+        'alidns': '阿里云 DNS',
+        'dnspod': '腾讯云 DNSPod',
+        'cloudflare': 'Cloudflare DNS',
+        'google': 'Google DNS'
+    };
+
     addLog('info', '开始 DNS 验证...');
     addLog('info', '查询域名: ' + fullDomain);
     const shortValue = dnsValue.length > 20 ? dnsValue.substring(0, 20) + '...' : dnsValue;
     addLog('info', '预期TXT值: ' + shortValue);
+    addLog('info', '使用 ' + (providerNames[provider] || provider) + ' DoH 服务');
 
     try {
         addLog('info', '正在查询 DNS 记录...');
-        addLog('info', '使用 Google DoH (DNS over HTTPS) 服务');
 
-        // 使用 Google DoH API 查询 DNS
-        const dohUrl = 'https://dns.google/resolve?name=' + encodeURIComponent(fullDomain) + '&type=TXT';
+        // 根据不同服务商构建 DoH URL
+        let dohUrl;
+        switch(provider) {
+            case 'alidns':
+                dohUrl = 'https://dns.alidns.com/resolve?name=' + encodeURIComponent(fullDomain) + '&type=TXT';
+                break;
+            case 'dnspod':
+                dohUrl = 'https://doh.pub/dns-query?name=' + encodeURIComponent(fullDomain) + '&type=TXT';
+                break;
+            case 'cloudflare':
+                dohUrl = 'https://cloudflare-dns.com/dns-query?name=' + encodeURIComponent(fullDomain) + '&type=TXT';
+                break;
+            case 'google':
+            default:
+                dohUrl = 'https://dns.google/resolve?name=' + encodeURIComponent(fullDomain) + '&type=TXT';
+                break;
+        }
 
-        const response = await fetch(dohUrl);
+        const response = await fetch(dohUrl, {
+            headers: provider === 'cloudflare' ? { 'Accept': 'application/dns-json' } : {}
+        });
+
         const data = await response.json();
 
         addLog('info', 'DNS 查询完成，状态: ' + data.Status);
@@ -158,7 +221,11 @@ async function verifyDNS() {
             // 解析 TXT 记录
             const txtRecords = data.Answer
                 .filter(answer => answer.type === 16) // TXT type
-                .map(answer => answer.data.replace(/^"|"$/g, '')); // 移除引号
+                .map(answer => {
+                    // 移除引号和转义字符
+                    let txt = answer.data || answer.Data || '';
+                    return txt.replace(/^"|"$/g, '').replace(/\\"/g, '"');
+                });
 
             addLog('info', '找到 ' + txtRecords.length + ' 条 TXT 记录');
 
@@ -176,17 +243,37 @@ async function verifyDNS() {
                 showVerificationStatus('success', '验证成功！', 'DNS 配置正确，可以继续下一步');
                 showContinueButton();
             } else {
-                const recordList = txtRecords.join('\\n');
-                throw new Error('未找到匹配的 TXT 记录\\n已查询到的记录:\\n' + recordList + '\\n预期值: ' + dnsValue);
+                const recordList = txtRecords.map((r, i) => (i + 1) + '. ' + r).join('\n');
+                addLog('error', '✗ 未找到匹配的 TXT 记录');
+                addLog('info', '已查询到的记录：');
+                txtRecords.forEach((r, i) => addLog('info', '  ' + (i + 1) + '. ' + r));
+                addLog('info', '预期值: ' + dnsValue);
+                throw new Error('未找到匹配的 TXT 记录');
             }
         } else {
-            throw new Error('DNS 查询失败，未找到 TXT 记录\\n请确认:\\n1. DNS 记录已添加\\n2. 等待 DNS 解析生效（可能需要几分钟）\\n3. 记录类型为 TXT\\n4. 主机记录为 ' + dnsHost);
+            addLog('error', '✗ DNS 查询失败，未找到 TXT 记录');
+            addLog('info', '');
+            addLog('warning', '请确认：');
+            addLog('info', '1. DNS 记录已添加');
+            addLog('info', '2. 等待 DNS 解析生效（可能需要几分钟）');
+            addLog('info', '3. 记录类型为 TXT');
+            addLog('info', '4. 主机记录为 ' + dnsHost);
+            addLog('info', '');
+            addLog('info', '建议手动验证命令：');
+            addLog('info', 'dig ' + fullDomain + ' TXT');
+            addLog('info', '或访问: https://toolbox.googleapps.com/apps/dig/#TXT/' + fullDomain);
+            throw new Error('DNS 查询失败，未找到 TXT 记录');
         }
     } catch (error) {
-        addLog('error', '✗ DNS 查询失败: ' + error.message);
-        addLog('warning', '建议使用以下命令手动验证：');
-        addLog('info', 'dig ' + fullDomain + ' TXT');
-        addLog('info', '或访问: https://toolbox.googleapps.com/apps/dig/#TXT/' + fullDomain);
+        if (error.message.includes('fetch')) {
+            addLog('error', '✗ DNS 查询失败: 网络错误');
+            addLog('warning', '建议：');
+            addLog('info', '1. 检查网络连接');
+            addLog('info', '2. 尝试切换其他 DNS 服务商');
+            addLog('info', '3. 使用命令行工具手动验证');
+        } else if (!error.message.includes('未找到匹配') && !error.message.includes('DNS 查询失败')) {
+            addLog('error', '✗ DNS 查询出错: ' + error.message);
+        }
         throw error;
     }
 }

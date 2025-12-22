@@ -5,7 +5,11 @@ const AppState = {
     domain: '',
     verificationMethod: 'webserver',
     certFormat: 'nginx',
-    acmeProvider: 'letsencrypt'
+    acmeProvider: 'letsencrypt',
+    // 验证数据（在整个流程中保持不变）
+    challengeFilename: '',
+    challengeContent: '',
+    dnsValue: ''
 };
 
 // ==================== 初始化 ====================
@@ -28,6 +32,9 @@ function initializeApp() {
 
     // 显示默认验证方式
     showVerificationMethod('webserver');
+
+    // 初始化域名历史记录功能
+    initializeDomainHistory();
 }
 
 // ==================== 步骤导航 ====================
@@ -77,6 +84,9 @@ function restartWizard() {
     AppState.domain = '';
     AppState.verificationMethod = 'webserver';
     AppState.certFormat = 'nginx';
+    AppState.challengeFilename = '';
+    AppState.challengeContent = '';
+    AppState.dnsValue = '';
 
     // 重置表单
     document.getElementById('domain-input').value = '';
@@ -134,6 +144,10 @@ function validateDomain() {
     AppState.domain = domain;
     AppState.acmeProvider = document.getElementById('acme-provider').value;
     hideError(errorElement);
+
+    // 保存到历史记录
+    saveDomainToHistory(domain);
+
     return true;
 }
 
@@ -230,24 +244,24 @@ function generateMockVerificationData(method) {
     const domain = AppState.domain || 'example.com';
 
     if (method === 'webserver') {
-        // 生成模拟的验证文件名和内容
-        const challengeFilename = generateRandomString(40);
-        const challengeContent = generateRandomString(87);
+        // 基于域名生成确定性的验证数据
+        AppState.challengeFilename = generateDeterministicString(domain + '-filename', 40);
+        AppState.challengeContent = generateDeterministicString(domain + '-content', 87);
 
         const filenameEl = document.getElementById('challenge-filename');
         const contentEl = document.getElementById('challenge-content');
 
-        if (filenameEl) filenameEl.textContent = challengeFilename;
-        if (contentEl) contentEl.textContent = challengeContent;
+        if (filenameEl) filenameEl.textContent = AppState.challengeFilename;
+        if (contentEl) contentEl.textContent = AppState.challengeContent;
     } else if (method === 'dns') {
-        // 生成模拟的 DNS 验证值
-        const dnsValue = generateRandomString(43);
+        // 基于域名生成确定性的 DNS 验证值
+        AppState.dnsValue = generateDeterministicString(domain + '-dns', 43);
 
         const dnsHostEl = document.getElementById('dns-host');
         const dnsValueEl = document.getElementById('dns-value');
 
         if (dnsHostEl) dnsHostEl.textContent = '_acme-challenge';
-        if (dnsValueEl) dnsValueEl.textContent = dnsValue;
+        if (dnsValueEl) dnsValueEl.textContent = AppState.dnsValue;
     }
 }
 
@@ -380,6 +394,43 @@ function hideError(element) {
     element.style.display = 'none';
 }
 
+// 简单的字符串哈希函数（用于生成确定性的数字）
+function simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // 转换为32位整数
+    }
+    return Math.abs(hash);
+}
+
+// 基于输入字符串生成确定性的随机字符串（改进版）
+function generateDeterministicString(seed, length) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    let result = '';
+
+    // 使用种子的多个哈希值创建更好的随机性
+    let hash1 = simpleHash(seed);
+    let hash2 = simpleHash(seed + 'salt1');
+    let hash3 = simpleHash(seed + 'salt2');
+
+    for (let i = 0; i < length; i++) {
+        // 使用三个不同的 LCG 组合，增加随机性
+        hash1 = (hash1 * 1103515245 + 12345) & 0x7fffffff;
+        hash2 = (hash2 * 48271 + 0) & 0x7fffffff;
+        hash3 = (hash3 * 69621 + 0) & 0x7fffffff;
+
+        // 混合三个哈希值
+        const combined = (hash1 ^ hash2 ^ hash3) + i * 2654435761;
+        const index = Math.abs(combined) % chars.length;
+        result += chars.charAt(index);
+    }
+
+    return result;
+}
+
+// 保留原有的随机字符串生成函数（以备不时之需）
 function generateRandomString(length) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
     let result = '';
@@ -436,3 +487,181 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
     window.AppState = AppState;
     console.log('Debug mode enabled. Access AppState via window.AppState');
 }
+
+// ==================== 域名历史记录管理 ====================
+const DOMAIN_HISTORY_KEY = 'dnsSsl_domainHistory';
+const MAX_HISTORY_ITEMS = 10;
+
+// 初始化域名历史记录功能
+function initializeDomainHistory() {
+    const historyToggle = document.getElementById('history-toggle');
+    const domainInput = document.getElementById('domain-input');
+
+    if (historyToggle) {
+        historyToggle.addEventListener('click', toggleDomainHistory);
+    }
+
+    // 点击页面其他地方时关闭历史记录
+    document.addEventListener('click', function(e) {
+        const historyPanel = document.getElementById('domain-history');
+        const historyToggle = document.getElementById('history-toggle');
+        const domainInput = document.getElementById('domain-input');
+
+        if (historyPanel &&
+            !historyPanel.contains(e.target) &&
+            !historyToggle.contains(e.target) &&
+            !domainInput.contains(e.target)) {
+            historyPanel.style.display = 'none';
+        }
+    });
+
+    // 加载历史记录显示
+    renderDomainHistory();
+}
+
+// 切换历史记录显示/隐藏
+function toggleDomainHistory() {
+    const historyPanel = document.getElementById('domain-history');
+    if (historyPanel.style.display === 'none') {
+        renderDomainHistory();
+        historyPanel.style.display = 'block';
+    } else {
+        historyPanel.style.display = 'none';
+    }
+}
+
+// 获取域名历史记录
+function getDomainHistory() {
+    try {
+        const history = localStorage.getItem(DOMAIN_HISTORY_KEY);
+        return history ? JSON.parse(history) : [];
+    } catch (e) {
+        console.error('Failed to load domain history:', e);
+        return [];
+    }
+}
+
+// 保存域名到历史记录
+function saveDomainToHistory(domain) {
+    if (!domain) return;
+
+    let history = getDomainHistory();
+
+    // 移除已存在的相同域名
+    history = history.filter(item => item.domain !== domain);
+
+    // 添加到开头
+    history.unshift({
+        domain: domain,
+        timestamp: Date.now()
+    });
+
+    // 限制历史记录数量
+    if (history.length > MAX_HISTORY_ITEMS) {
+        history = history.slice(0, MAX_HISTORY_ITEMS);
+    }
+
+    try {
+        localStorage.setItem(DOMAIN_HISTORY_KEY, JSON.stringify(history));
+    } catch (e) {
+        console.error('Failed to save domain history:', e);
+    }
+}
+
+// 渲染域名历史记录列表
+function renderDomainHistory() {
+    const historyList = document.getElementById('history-list');
+    if (!historyList) return;
+
+    const history = getDomainHistory();
+
+    if (history.length === 0) {
+        historyList.innerHTML = '<li class="history-empty">暂无历史记录</li>';
+        return;
+    }
+
+    historyList.innerHTML = history.map(item => {
+        const timeStr = formatHistoryTime(item.timestamp);
+        return `
+            <li onclick="selectDomainFromHistory('${escapeHtml(item.domain)}')">
+                <span class="history-item-domain">${escapeHtml(item.domain)}</span>
+                <span class="history-item-time">${timeStr}</span>
+                <button class="history-item-delete" onclick="event.stopPropagation(); deleteDomainFromHistory('${escapeHtml(item.domain)}')" title="删除">×</button>
+            </li>
+        `;
+    }).join('');
+}
+
+// 从历史记录中选择域名
+function selectDomainFromHistory(domain) {
+    const domainInput = document.getElementById('domain-input');
+    if (domainInput) {
+        domainInput.value = domain;
+        domainInput.focus();
+    }
+
+    // 隐藏历史记录面板
+    const historyPanel = document.getElementById('domain-history');
+    if (historyPanel) {
+        historyPanel.style.display = 'none';
+    }
+}
+
+// 从历史记录中删除单个域名
+function deleteDomainFromHistory(domain) {
+    let history = getDomainHistory();
+    history = history.filter(item => item.domain !== domain);
+
+    try {
+        localStorage.setItem(DOMAIN_HISTORY_KEY, JSON.stringify(history));
+        renderDomainHistory();
+    } catch (e) {
+        console.error('Failed to delete domain from history:', e);
+    }
+}
+
+// 清空所有历史记录
+function clearDomainHistory() {
+    if (confirm('确定要清空所有历史记录吗？')) {
+        try {
+            localStorage.removeItem(DOMAIN_HISTORY_KEY);
+            renderDomainHistory();
+        } catch (e) {
+            console.error('Failed to clear domain history:', e);
+        }
+    }
+}
+
+// 格式化历史记录时间
+function formatHistoryTime(timestamp) {
+    const now = Date.now();
+    const diff = now - timestamp;
+
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+
+    if (diff < minute) {
+        return '刚刚';
+    } else if (diff < hour) {
+        const minutes = Math.floor(diff / minute);
+        return `${minutes}分钟前`;
+    } else if (diff < day) {
+        const hours = Math.floor(diff / hour);
+        return `${hours}小时前`;
+    } else if (diff < 7 * day) {
+        const days = Math.floor(diff / day);
+        return `${days}天前`;
+    } else {
+        const date = new Date(timestamp);
+        return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    }
+}
+
+// HTML 转义（防止 XSS）
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+

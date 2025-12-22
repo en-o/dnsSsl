@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试确定性生成</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        input {
+            padding: 10px;
+            width: 300px;
+            font-size: 16px;
+            border: 2px solid #2563eb;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            word-break: break-all;
+        }
+        .label {
+            font-weight: bold;
+            color: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>测试确定性验证值生成</h1>
+    <p>相同的域名应该总是生成相同的验证值</p>
+
+    <div class="test-section">
+        <h2>测试工具</h2>
+        <input type="text" id="domain" placeholder="输入域名，如：example.com" value="example.com">
+        <button onclick="generateValues()">生成验证值</button>
+        <button onclick="generateValues()">再次生成（应该相同）</button>
+
+        <div class="result" id="results" style="display: none;">
+            <div><span class="label">域名：</span><span id="result-domain"></span></div>
+            <div><span class="label">Challenge Filename (40字符)：</span><span id="result-filename"></span></div>
+            <div><span class="label">Challenge Content (87字符)：</span><span id="result-content"></span></div>
+            <div><span class="label">DNS TXT Value (43字符)：</span><span id="result-dns"></span></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>验证说明</h2>
+        <p>✓ 相同域名多次生成应该得到完全相同的结果</p>
+        <p>✓ 不同域名应该生成不同的验证值</p>
+        <p>✓ 刷新页面后，相同域名仍然生成相同的结果</p>
+    </div>
+
+    <script>
+        // 简单的字符串哈希函数（用于生成确定性的数字）
+        function simpleHash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // 转换为32位整数
+            }
+            return Math.abs(hash);
+        }
+
+        // 基于输入字符串生成确定性的随机字符串（改进版）
+        function generateDeterministicString(seed, length) {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+            let result = '';
+
+            // 使用种子的多个哈希值创建更好的随机性
+            let hash1 = simpleHash(seed);
+            let hash2 = simpleHash(seed + 'salt1');
+            let hash3 = simpleHash(seed + 'salt2');
+
+            for (let i = 0; i < length; i++) {
+                // 使用三个不同的 LCG 组合，增加随机性
+                hash1 = (hash1 * 1103515245 + 12345) & 0x7fffffff;
+                hash2 = (hash2 * 48271 + 0) & 0x7fffffff;
+                hash3 = (hash3 * 69621 + 0) & 0x7fffffff;
+
+                // 混合三个哈希值
+                const combined = (hash1 ^ hash2 ^ hash3) + i * 2654435761;
+                const index = Math.abs(combined) % chars.length;
+                result += chars.charAt(index);
+            }
+
+            return result;
+        }
+
+        function generateValues() {
+            const domain = document.getElementById('domain').value.trim();
+
+            if (!domain) {
+                alert('请输入域名');
+                return;
+            }
+
+            // 生成确定性验证值
+            const filename = generateDeterministicString(domain + '-filename', 40);
+            const content = generateDeterministicString(domain + '-content', 87);
+            const dnsValue = generateDeterministicString(domain + '-dns', 43);
+
+            // 显示结果
+            document.getElementById('result-domain').textContent = domain;
+            document.getElementById('result-filename').textContent = filename;
+            document.getElementById('result-content').textContent = content;
+            document.getElementById('result-dns').textContent = dnsValue;
+            document.getElementById('results').style.display = 'block';
+
+            console.log('Generated for domain:', domain);
+            console.log('Filename:', filename);
+            console.log('Content:', content);
+            console.log('DNS:', dnsValue);
+        }
+
+        // 页面加载时自动生成一次
+        window.onload = function() {
+            generateValues();
+        };
+    </script>
+</body>
+</html>
