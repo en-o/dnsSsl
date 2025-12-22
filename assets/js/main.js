@@ -901,14 +901,11 @@ async function checkSSLCertificate(domain) {
         certDaysEl.textContent = '检测中...';
         certDaysEl.className = 'cert-value cert-days';
 
-        // 由于浏览器安全限制，无法直接获取SSL证书信息
-        // 这里使用模拟数据作为演示
-        // 实际项目中需要：
-        // 1. 后端API：创建一个API端点来检查SSL证书
-        // 2. 或使用第三方服务：如 SSL Labs API
-
         console.log('正在检测域名:', domain);
-        const certInfo = await mockSSLCertCheck(domain);
+
+        // 使用第三方API检测SSL证书
+        // 方案1: 使用 crt.sh 的透明度日志查询（免费，无需API Key）
+        const certInfo = await checkSSLViaTransparencyLog(domain);
 
         if (certInfo) {
             AppState.sslCertInfo = certInfo;
@@ -935,62 +932,68 @@ async function checkSSLCertificate(domain) {
             AppState.certDaysRemaining = null;
         }
     } catch (error) {
-        // 检测失败（可能是没有SSL证书或网络问题）
-        console.log('SSL证书检测失败，使用模拟数据:', error.message);
-
-        // 即使失败也尝试使用模拟数据
-        try {
-            const certInfo = await mockSSLCertCheck(domain);
-            if (certInfo) {
-                AppState.sslCertInfo = certInfo;
-                AppState.certDaysRemaining = certInfo.daysRemaining;
-
-                certIssuerEl.textContent = certInfo.issuer;
-                certExpiryEl.textContent = certInfo.expiryDate;
-                certDaysEl.textContent = `${certInfo.daysRemaining} 天`;
-
-                if (certInfo.daysRemaining < 7) {
-                    certDaysEl.className = 'cert-value cert-days cert-danger';
-                } else if (certInfo.daysRemaining < 30) {
-                    certDaysEl.className = 'cert-value cert-days cert-warning';
-                } else {
-                    certDaysEl.className = 'cert-value cert-days cert-success';
-                }
-
-                certInfoBox.style.display = 'block';
-            } else {
-                certInfoBox.style.display = 'none';
-                AppState.sslCertInfo = null;
-                AppState.certDaysRemaining = null;
-            }
-        } catch (e) {
-            certInfoBox.style.display = 'none';
-            AppState.sslCertInfo = null;
-            AppState.certDaysRemaining = null;
-        }
+        console.log('SSL证书检测失败:', error.message);
+        certInfoBox.style.display = 'none';
+        AppState.sslCertInfo = null;
+        AppState.certDaysRemaining = null;
     }
 }
 
-// 模拟SSL证书检测（实际环境中需要后端API支持）
-async function mockSSLCertCheck(domain) {
-    // 模拟网络延迟
-    await sleep(1200);
+// 通过证书透明度日志检测SSL证书
+async function checkSSLViaTransparencyLog(domain) {
+    try {
+        // 使用 crt.sh API 查询证书透明度日志
+        const response = await fetch(`https://crt.sh/?q=${encodeURIComponent(domain)}&output=json&exclude=expired`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
 
-    // 根据域名生成确定性的模拟数据（同一个域名总是返回相同的结果）
-    const hash = simpleHash(domain);
-    const shouldHaveCert = hash % 10 >= 3; // 70%概率有证书
+        if (!response.ok) {
+            throw new Error('证书查询失败');
+        }
 
-    if (shouldHaveCert) {
-        // 使用哈希值生成确定性的剩余天数
-        const daysOptions = [5, 12, 18, 25, 35, 48, 60, 75, 82];
-        const daysRemaining = daysOptions[hash % daysOptions.length];
+        const certificates = await response.json();
 
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + daysRemaining);
+        if (!certificates || certificates.length === 0) {
+            // 尝试使用备用方案：直接解析证书
+            return await checkSSLViaSSLLabs(domain);
+        }
 
-        // 根据域名选择不同的颁发者
-        const issuers = ["Let's Encrypt", "ZeroSSL", "DigiCert"];
-        const issuer = issuers[hash % issuers.length];
+        // 找到最新的有效证书
+        const validCerts = certificates
+            .filter(cert => {
+                const notAfter = new Date(cert.not_after);
+                return notAfter > new Date();
+            })
+            .sort((a, b) => new Date(b.not_after) - new Date(a.not_after));
+
+        if (validCerts.length === 0) {
+            return null;
+        }
+
+        const latestCert = validCerts[0];
+        const expiryDate = new Date(latestCert.not_after);
+        const today = new Date();
+        const daysRemaining = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+
+        // 提取颁发者名称
+        let issuer = latestCert.issuer_name || 'Unknown';
+        if (issuer.includes('Let\'s Encrypt')) {
+            issuer = "Let's Encrypt";
+        } else if (issuer.includes('ZeroSSL')) {
+            issuer = 'ZeroSSL';
+        } else if (issuer.includes('DigiCert')) {
+            issuer = 'DigiCert';
+        } else if (issuer.includes('Cloudflare')) {
+            issuer = 'Cloudflare';
+        } else {
+            // 提取 CN 或 O 字段
+            const cnMatch = issuer.match(/CN=([^,]+)/);
+            const oMatch = issuer.match(/O=([^,]+)/);
+            issuer = cnMatch ? cnMatch[1] : (oMatch ? oMatch[1] : 'Unknown CA');
+        }
 
         return {
             issuer: issuer,
@@ -1001,8 +1004,57 @@ async function mockSSLCertCheck(domain) {
             }),
             daysRemaining: daysRemaining
         };
-    } else {
-        // 30%概率未检测到证书
+    } catch (error) {
+        console.log('crt.sh 查询失败，尝试备用方案:', error.message);
+        // 使用备用方案
+        return await checkSSLViaSSLLabs(domain);
+    }
+}
+
+// 备用方案：使用 SSL Labs API（更慢但更准确）
+async function checkSSLViaSSLLabs(domain) {
+    try {
+        // SSL Labs API 需要先发起分析请求，然后轮询结果
+        // 这里使用简化版本：直接获取缓存的结果
+        const response = await fetch(`https://api.ssllabs.com/api/v3/getEndpointData?host=${encodeURIComponent(domain)}&fromCache=on`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('SSL Labs 查询失败');
+        }
+
+        const data = await response.json();
+
+        if (data.statusMessage && data.statusMessage !== 'Ready') {
+            console.log('SSL Labs 分析未就绪');
+            return null;
+        }
+
+        // 解析证书信息
+        if (data.certs && data.certs.length > 0) {
+            const cert = data.certs[0];
+            const expiryDate = new Date(cert.notAfter);
+            const today = new Date();
+            const daysRemaining = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+
+            return {
+                issuer: cert.issuerLabel || 'Unknown CA',
+                expiryDate: expiryDate.toLocaleDateString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }),
+                daysRemaining: daysRemaining
+            };
+        }
+
+        return null;
+    } catch (error) {
+        console.log('SSL Labs 查询失败:', error.message);
         return null;
     }
 }
