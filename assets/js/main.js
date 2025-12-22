@@ -444,9 +444,11 @@ function generateRealisticCertificateContent(fileName, domain) {
     // 生成基于域名的确定性序列号
     const serialNumber = generateSerialNumber(domain);
 
-    if (fileName.includes('.crt') || fileName.includes('.pem') || fileName === 'fullchain.pem' || fileName.includes('cert')) {
+    // 根据文件名判断文件类型
+    if (fileName.includes('.pem') || fileName.includes('.crt')) {
+        // PEM/CRT 格式证书
         return `-----BEGIN CERTIFICATE-----
-MIIFXTCCBEWgAwIBAgISBN${serialNumber}MAoGCCqGSM49BAMC
+MIIFXTCCBEWgAwIBAgISBN${serialNumber.substring(0, 20)}MAoGCCqGSM49BAMC
 MBgxCzAJBgNVBAYTAlVTMRkwFwYDVQQKExBMZXQncyBFbmNyeXB0MSswKQYDVQQD
 EyJMZXQncyBFbmNyeXB0IEF1dGhvcml0eSBYMzAeFw0${formatDate(notBefore)}WhcNMj
 Q${formatDate(notAfter)}WjAaMRgwFgYDVQQDEw8ke3YyfS5leGFtcGxlLmNvbTBZMBMG
@@ -473,7 +475,8 @@ Valid From: ${notBefore.toUTCString()}
 Valid Until: ${notAfter.toUTCString()}
 Serial Number: ${serialNumber}
 `;
-    } else if (fileName.includes('.key') || fileName.includes('private')) {
+    } else if (fileName.includes('.key') || fileName.includes('privkey')) {
+        // 私钥文件
         return `-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC${generateRandomBase64(64)}
 ${generateRandomBase64(64)}
@@ -503,23 +506,8 @@ ${generateRandomBase64(64)}==
 Domain: ${cleanDomain}
 Generated: ${timestamp}
 `;
-    } else if (fileName.includes('.csr')) {
-        return `-----BEGIN CERTIFICATE REQUEST-----
-MIICvDCCAaQCAQAwdzELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWEx
-FjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xFTATBgNVBAoMDEV4YW1wbGUgSW5jLjEk
-MCIGA1UEAwwbJHtjbGVhbkRvbWFpbn0wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
-ggEKAoIBAQC${generateRandomBase64(64)}
-${generateRandomBase64(64)}
-${generateRandomBase64(64)}
-${generateRandomBase64(64)}
-CwIDAQABoAAwDQYJKoZIhvcNAQELBQADggEBAF${generateRandomBase64(64)}
-${generateRandomBase64(64)}==
------END CERTIFICATE REQUEST-----
-
-Domain: ${cleanDomain}
-Generated: ${timestamp}
-`;
     } else if (fileName.includes('.pfx') || fileName.includes('.p12')) {
+        // PKCS#12 格式（二进制，这里用文本说明）
         return `此文件为二进制格式的 PKCS#12 证书文件。
 
 文件信息：
@@ -535,10 +523,61 @@ Generated: ${timestamp}
 1. IIS: 导入到"服务器证书"
 2. Windows: 双击安装到证书存储
 3. Java Keystore: 使用 keytool 导入
+4. Tomcat: 配置在 server.xml 中
+
+导入示例：
+- Windows IIS: 双击 ${fileName} 文件，按提示导入
+- Tomcat: 在 server.xml 的 Connector 中配置 certificateKeystoreFile
 
 [二进制数据占位符 - 实际文件应为二进制格式]
 `;
+    } else if (fileName.includes('.jks')) {
+        // Java KeyStore 格式（二进制）
+        return `此文件为二进制格式的 Java KeyStore 文件。
+
+文件信息：
+- 格式: JKS (Java KeyStore)
+- 域名: ${cleanDomain}
+- 包含: 私钥 + 证书链
+- 生成时间: ${timestamp}
+- 默认密码: changeit
+
+⚠️  注意：实际环境中，请设置强密码保护 JKS 文件！
+
+使用方法：
+1. Spring Boot: 配置在 application.properties 中
+2. Tomcat: 配置在 server.xml 中
+3. 其他 Java 应用: 使用 KeyStore API 加载
+
+Spring Boot 配置示例：
+server.port=8443
+server.ssl.enabled=true
+server.ssl.key-store=classpath:${fileName}
+server.ssl.key-store-password=changeit
+server.ssl.key-store-type=JKS
+server.ssl.key-alias=tomcat
+
+[二进制数据占位符 - 实际文件应为二进制格式]
+`;
+    } else if (fileName.includes('.csr')) {
+        // 证书签名请求
+        return `-----BEGIN CERTIFICATE REQUEST-----
+MIICvDCCAaQCAQAwdzELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWEx
+FjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xFTATBgNVBAoMDEV4YW1wbGUgSW5jLjEk
+MCIGA1UEAwwbJHtjbGVhbkRvbWFpbn0wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
+ggEKAoIBAQC${generateRandomBase64(64)}
+${generateRandomBase64(64)}
+${generateRandomBase64(64)}
+${generateRandomBase64(64)}
+CwIDAQABoAAwDQYJKoZIhvcNAQELBQADggEBAF${generateRandomBase64(64)}
+${generateRandomBase64(64)}==
+-----END CERTIFICATE REQUEST-----
+
+Domain: ${cleanDomain}
+Generated: ${timestamp}
+`;
     } else {
+        // 默认通用说明
         return `SSL 证书文件
 ==================
 

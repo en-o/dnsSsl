@@ -133,29 +133,65 @@ async function verifyWebServer() {
 
     addLog('info', '正在尝试访问验证文件...');
 
-    // 由于CORS限制，这里使用模拟验证
-    const simulateSuccess = Math.random() > 0.3; // 70%成功率
+    try {
+        // 真实的HTTP请求验证
+        const response = await fetch(verifyUrl, {
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-cache'
+        });
 
-    await sleep(2000); // 模拟网络请求
+        if (!response.ok) {
+            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+        }
 
-    if (simulateSuccess) {
+        const content = await response.text();
+        const trimmedContent = content.trim();
+
         addLog('success', '✓ 成功访问验证文件');
-        addLog('success', '✓ 验证内容匹配');
-        addLog('success', '✓ Web 服务器验证通过！');
-        showVerificationStatus('success', '验证成功！', 'Web 服务器配置正确，可以继续下一步');
-        showContinueButton();
-    } else {
-        addLog('error', '✗ HTTP 请求失败: 无法访问验证文件');
-        addLog('warning', '提示：由于浏览器CORS限制，此处为模拟验证结果');
-        addLog('info', '请手动确认验证URL可访问：');
-        addLog('info', verifyUrl);
-        addLog('info', '');
-        addLog('warning', '请确认：');
-        addLog('info', '1. 域名解析正确');
-        addLog('info', '2. Web 服务器正在运行');
-        addLog('info', '3. 验证文件已正确放置');
-        addLog('info', '4. 防火墙允许 HTTP (80端口) 访问');
-        throw new Error('无法访问验证文件，请检查上述配置');
+        addLog('info', '获取到的内容: ' + (trimmedContent.length > 30 ? trimmedContent.substring(0, 30) + '...' : trimmedContent));
+
+        // 验证内容是否匹配
+        if (trimmedContent === challengeContent.trim()) {
+            addLog('success', '✓ 验证内容匹配');
+            addLog('success', '✓ Web 服务器验证通过！');
+            showVerificationStatus('success', '验证成功！', 'Web 服务器配置正确，可以继续下一步');
+            showContinueButton();
+        } else {
+            addLog('error', '✗ 验证内容不匹配');
+            addLog('info', '预期内容: ' + challengeContent);
+            addLog('info', '实际内容: ' + trimmedContent);
+            throw new Error('验证内容不匹配');
+        }
+    } catch (error) {
+        // 捕获CORS或网络错误
+        if (error.message.includes('Failed to fetch') || error.message.includes('CORS') || error.name === 'TypeError') {
+            addLog('warning', '⚠ 浏览器 CORS 限制：无法直接访问验证文件');
+            addLog('info', '');
+            addLog('info', '请手动验证以下URL是否可访问：');
+            addLog('info', verifyUrl);
+            addLog('info', '');
+            addLog('info', '验证方法：');
+            addLog('info', '1. 在浏览器新标签页打开上述URL');
+            addLog('info', '2. 或使用命令行: curl ' + verifyUrl);
+            addLog('info', '3. 确认返回内容为: ' + challengeContent);
+            addLog('info', '');
+            addLog('warning', '如果URL可以正常访问且内容正确，请点击"继续下一步"');
+
+            // 虽然有CORS错误，但给用户继续的机会
+            showVerificationStatus('warning', '无法自动验证', '请手动确认URL可访问后继续');
+            showContinueButton();
+        } else {
+            addLog('error', '✗ HTTP 请求失败: ' + error.message);
+            addLog('info', '');
+            addLog('warning', '请确认：');
+            addLog('info', '1. 域名解析正确');
+            addLog('info', '2. Web 服务器正在运行');
+            addLog('info', '3. 验证文件已正确放置');
+            addLog('info', '4. 防火墙允许 HTTP (80端口) 访问');
+            addLog('info', '5. Nginx 配置已生效（nginx -s reload）');
+            throw error;
+        }
     }
 }
 

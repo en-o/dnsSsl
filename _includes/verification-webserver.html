@@ -169,6 +169,67 @@ curl -v http://<span class="domain-placeholder">example.com</span>/.well-known/a
 rm /var/www/html/.well-known/acme-challenge/test.txt</code></pre>
                         </div>
                     </div>
+
+                    <div class="example-section">
+                        <h6>场景 4：多域名共用一个服务器</h6>
+                        <p class="example-note">多个域名可以共用同一个 <code>/.well-known/acme-challenge/</code> 目录</p>
+                        <pre><code># 目录结构（所有域名共用）
+/var/www/html/.well-known/acme-challenge/
+├── abc123...xyz  (example.com 的验证文件)
+├── def456...uvw  (blog.example.com 的验证文件)
+└── ghi789...rst  (api.example.com 的验证文件)
+
+# Nginx 配置示例
+server {
+    listen 80;
+    server_name example.com;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/html;
+        try_files $uri =404;
+    }
+
+    location / {
+        rewrite ^(.*) https://$server_name$1 permanent;
+    }
+}
+
+server {
+    listen 80;
+    server_name blog.example.com;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/html;  # 所有域名指向同一个目录
+        try_files $uri =404;
+    }
+
+    location / {
+        rewrite ^(.*) https://$server_name$1 permanent;
+    }
+}
+
+server {
+    listen 80;
+    server_name api.example.com;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/html;  # 所有域名指向同一个目录
+        try_files $uri =404;
+    }
+
+    location / {
+        rewrite ^(.*) https://$server_name$1 permanent;
+    }
+}</code></pre>
+                        <div class="example-tips">
+                            <p><strong>为什么可以共用目录？</strong></p>
+                            <ul>
+                                <li><strong>验证文件名唯一：</strong>每个域名的验证文件名都是随机生成的（如 <code>abc123xyz...</code>），不会冲突</li>
+                                <li><strong>Let's Encrypt 只访问对应域名的文件：</strong>申请 <code>example.com</code> 证书时，只会访问 <code>http://example.com/.well-known/acme-challenge/abc123xyz</code></li>
+                                <li><strong>简化管理：</strong>所有验证文件放在同一个目录，便于统一管理和清理</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </li>
             <li>
@@ -212,6 +273,8 @@ sudo systemctl reload apache2
             <li>确保防火墙开放 80 端口</li>
             <li>验证文件需要通过 HTTP（非 HTTPS）访问</li>
             <li>验证文件无需扩展名</li>
+            <li><strong>多域名场景：</strong>多个域名可以共用同一个 <code>/.well-known/acme-challenge/</code> 目录，因为每个域名的验证文件名都是唯一的随机字符串，不会冲突</li>
+            <li><strong>目录权限：</strong>确保 nginx/apache 用户对 <code>/.well-known/acme-challenge/</code> 目录有读取权限</li>
         </ul>
     </div>
 </div>
