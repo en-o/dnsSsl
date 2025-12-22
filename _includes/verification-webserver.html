@@ -14,6 +14,16 @@
     <div class="method-description">
         <p>通过在您的 Web 服务器上放置验证文件来证明域名所有权。适用于有公网可访问 Web 服务器的场景。</p>
         <p style="color: red">配置完成后一定要使其生效比如【nginx -s reload】重新加载nginx</p>
+
+        <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px; margin-top: 12px;">
+            <p style="margin: 0; color: #ef4444; font-weight: bold;">⚠️ ACME 协议重要特性：</p>
+            <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #991b1b;">
+                <li><strong>每次申请/续期证书时，验证文件名和内容都会改变！</strong></li>
+                <li>原因：Let's Encrypt 每次生成不同的随机 token</li>
+                <li>这是 ACME 协议的安全设计，无法绕过</li>
+                <li>验证数据无法提前准备或长期保留使用</li>
+            </ul>
+        </div>
     </div>
 
     <div class="method-steps">
@@ -233,8 +243,9 @@ server {
                             <p><strong>为什么可以共用目录？</strong></p>
                             <ul>
                                 <li><strong>验证文件名唯一：</strong>每个域名的验证文件名都是随机生成的（如 <code>abc123xyz...</code>），不会冲突</li>
+                                <li><strong>每次申请文件名都不同：</strong>同一域名每次申请/续期证书时，Let's Encrypt 都会生成新的随机文件名</li>
                                 <li><strong>Let's Encrypt 只访问对应域名的文件：</strong>申请 <code>example.com</code> 证书时，只会访问 <code>http://example.com/.well-known/acme-challenge/abc123xyz</code></li>
-                                <li><strong>简化管理：</strong>所有验证文件放在同一个目录，便于统一管理和清理</li>
+                                <li><strong>简化管理：</strong>所有验证文件放在同一个目录，便于统一管理和清理（建议定期清理旧的验证文件）</li>
                             </ul>
                         </div>
                     </div>
@@ -301,8 +312,10 @@ tail -f /var/log/nginx/error.log</code></pre>
             <li>确保防火墙开放 80 端口</li>
             <li>验证文件需要通过 HTTP（非 HTTPS）访问</li>
             <li>验证文件无需扩展名</li>
+            <li><strong>每次申请/续期：</strong>验证文件名和内容每次都不同，需要重新创建验证文件</li>
             <li><strong>多域名场景：</strong>多个域名可以共用同一个 <code>/.well-known/acme-challenge/</code> 目录，因为每个域名的验证文件名都是唯一的随机字符串，不会冲突</li>
             <li><strong>目录权限：</strong>确保 nginx/apache 用户对 <code>/.well-known/acme-challenge/</code> 目录有读取权限 <code> chmod -R 755 /.well-known/acme-challenge/</code></li>
+            <li><strong>自动化建议：</strong>推荐使用 Certbot 或 acme.sh 等工具实现自动续期，避免手动操作</li>
         </ul>
     </div>
 </div>

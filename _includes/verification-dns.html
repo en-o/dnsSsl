@@ -68,13 +68,22 @@ nslookup -type=TXT _acme-challenge.<span class="domain-placeholder">example.com<
     </div>
 
     <div class="method-notes">
-        <h4>注意事项：</h4>
+        <h4>⚠️ ACME 协议重要特性：</h4>
+        <ul>
+            <li><strong style="color: #ef4444;">每次申请/续期证书时，TXT 记录值都会改变！</strong></li>
+            <li>原因：Let's Encrypt 每次生成不同的随机 token</li>
+            <li>这是 ACME 协议的安全设计，无法绕过</li>
+            <li>验证数据无法提前准备或长期保留使用</li>
+        </ul>
+
+        <h4>其他注意事项：</h4>
         <ul>
             <li>DNS 验证支持通配符证书（如 *.example.com）</li>
             <li>确保 TXT 记录的值用双引号包裹</li>
-            <li>不同 DNS 服务商的解析生效时间不同</li>
-            <li><strong>建议保留 TXT 记录：</strong>验证成功后尽量不要删除记录，以便后续证书续期时直接使用。记录值基本不会改变，即使改变也只需修改记录值即可，无需重新添加</li>
+            <li>不同 DNS 服务商的解析生效时间不同（通常 1-10 分钟）</li>
+            <li>可以保留 TXT 记录名称（_acme-challenge），续期时只需修改记录值</li>
             <li>如果域名使用了 CDN，注意 DNS 缓存问题</li>
+            <li>建议使用 Certbot 或 acme.sh 等工具实现自动续期</li>
         </ul>
     </div>
 

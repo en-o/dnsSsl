@@ -88,6 +88,18 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                 </ul>
             </div>
 
+            <div class="ca-info-box" style="background: #fef2f2; border-left: 4px solid #ef4444;">
+                <h4 style="color: #ef4444;">⚠️ ACME 协议重要特性</h4>
+                <p style="margin-bottom: 8px; color: #991b1b;"><strong>每次申请/续期证书时，验证数据都会改变：</strong></p>
+                <ul style="color: #991b1b;">
+                    <li><strong>HTTP-01 验证：</strong>文件名和内容每次不同（CA 服务器随机生成 token）</li>
+                    <li><strong>DNS-01 验证：</strong>TXT 记录值每次不同（基于随机 token 计算）</li>
+                    <li><strong>原因：</strong>这是 ACME 协议的安全设计，无法绕过</li>
+                    <li><strong>建议：</strong>使用 Certbot 或 acme.sh 等工具实现自动续期</li>
+                </ul>
+                <p style="margin-top: 8px; font-size: 14px; color: #7f1d1d;">💡 本工具适合首次申请或学习 ACME 流程，生产环境建议使用自动化工具</p>
+            </div>
+
             <div class="button-group">
                 <button class="btn btn-primary" onclick="nextStep(1)">下一步</button>
             </div>

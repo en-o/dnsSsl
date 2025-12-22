@@ -6,11 +6,15 @@ const AppState = {
     verificationMethod: 'webserver',
     certFormat: 'nginx',
     acmeProvider: 'letsencrypt',
-    // 验证数据（在整个流程中保持不变）
+    // ⚠️ 重要：验证数据仅在当前申请流程中有效！
+    // ACME 协议特性：每次申请证书时，CA 服务器会生成新的随机 token
+    // - HTTP-01：文件名和内容每次都不同
+    // - DNS-01：TXT 记录值每次都不同
+    // 这是 ACME 协议的安全设计，无法绕过，不可跨流程复用
     challengeFilename: '',
     challengeContent: '',
     dnsValue: '',
-    // ACME 订单信息（步骤2创建，步骤5复用）
+    // ACME 订单信息（步骤2创建，步骤5复用，仅在当前流程有效）
     acmeClient: null,
     acmeOrderUrl: null,
     http01ChallengeUrl: null,  // HTTP-01 挑战 URL
@@ -231,13 +235,14 @@ function onStepEnter(step) {
             break;
         case 2:
             updateDomainDisplay();
-            // 只在第一次进入步骤2时获取 ACME 挑战数据
-            // 后续切换验证方式时不重新获取，保持数据固定
+            // 进入步骤2时获取 ACME 挑战数据（每次申请都会生成新的 token）
+            // 注意：同一个 ACME 订单会同时提供 HTTP-01 和 DNS-01 两种挑战
+            // 在当前申请流程中切换验证方式时，使用同一订单的不同挑战类型
             if (!AppState.acmeClient || !AppState.acmeOrderUrl) {
-                // 首次进入，获取挑战数据
+                // 首次进入，创建新订单并获取挑战数据
                 showVerificationMethod(AppState.verificationMethod, true);
             } else {
-                // 已有挑战数据，直接显示 UI（不重新获取）
+                // 已有订单，切换显示不同验证方式（使用同一订单的不同挑战类型）
                 showVerificationMethod(AppState.verificationMethod, false);
             }
             break;
@@ -291,7 +296,8 @@ function bindVerificationMethodChange() {
     const radioButtons = document.querySelectorAll('input[name="verification-method"]');
     radioButtons.forEach(radio => {
         radio.addEventListener('change', function() {
-            // 切换验证方式时不重新获取挑战数据（fetchChallenge = false）
+            // 切换验证方式时使用同一个订单的不同挑战类型（fetchChallenge = false）
+            // 注意：这不是复用旧数据，而是在同一个 ACME 订单中选择不同的验证方式
             showVerificationMethod(this.value, false);
         });
     });
@@ -334,8 +340,19 @@ function showVerificationMethod(method, fetchChallenge = true) {
 
 // ==================== 获取真实的 ACME 挑战数据（步骤2使用）====================
 /**
- * 在步骤2获取真实的 ACME 挑战数据，而不是生成模拟数据
- * 这样用户在步骤2配置的验证数据与步骤5实际申请时使用的数据一致
+ * ⚠️ ACME 协议重要特性说明：
+ *
+ * 每次申请证书时，Let's Encrypt 都会生成全新的随机 token：
+ * - HTTP-01：文件名（token）由 CA 服务器随机生成，每次都不同
+ * - DNS-01：记录值基于随机 token 计算，每次都不同
+ *
+ * 这意味着：
+ * 1. 验证数据无法提前准备或长期保留使用
+ * 2. 每次申请/续期证书都需要重新配置验证
+ * 3. 这是 ACME 协议的安全设计，无法绕过
+ *
+ * 本函数在步骤2创建 ACME 订单并获取挑战数据
+ * 用户在步骤2配置的验证数据将在步骤5实际申请时使用（同一订单）
  */
 async function getRealAcmeChallengeForStep2(method) {
     const domain = AppState.domain;
