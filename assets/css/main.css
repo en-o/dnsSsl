@@ -1783,3 +1783,59 @@ body {
     }
 }
 
+/* ==================== 复制按钮样式 ==================== */
+.copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.copy-btn:hover {
+    background: white;
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
+}
+
+.copy-btn:active {
+    transform: scale(0.95);
+}
+
+.copy-btn svg {
+    flex-shrink: 0;
+}
+
+/* 确保代码块有足够的右边距 */
+.copy-btn + pre,
+pre:has(+ .copy-btn) {
+    padding-right: 100px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .copy-btn {
+        position: static;
+        margin-top: 8px;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .copy-btn + pre,
+    pre:has(+ .copy-btn) {
+        padding-right: 16px;
+    }
+}
+

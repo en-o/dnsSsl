@@ -325,12 +325,12 @@ function showVerificationMethod(method, fetchChallenge = true) {
 
     // 只在需要时获取挑战数据（首次进入步骤2）
     if (fetchChallenge) {
-        // 获取真实的 ACME 挑战数据（而不是生成模拟数据）
+        // 获取真实的 ACME 挑战数据
         if (AppState.domain) {
             getRealAcmeChallengeForStep2(method);
         } else {
-            // 如果还没有域名，使用模拟数据
-            generateMockVerificationData(method);
+            // 如果还没有域名，使用示例数据
+            generateExampleVerificationData(method);
         }
     } else {
         // 切换验证方式时，使用已有的挑战数据更新 UI
@@ -408,9 +408,9 @@ async function getRealAcmeChallengeForStep2(method) {
 
     } catch (error) {
         console.error('[Step2] 获取 ACME 挑战数据失败:', error);
-        // 如果失败，回退到模拟数据
-        console.warn('[Step2] 回退到模拟数据模式');
-        generateMockVerificationData(method);
+        // 显示错误信息
+        alert('获取验证数据失败：' + error.message + '\n\n请检查网络连接后重试。');
+        throw error;
     }
 }
 
@@ -449,13 +449,16 @@ function updateVerificationDataUI(method) {
 }
 
 
-function generateMockVerificationData(method) {
-    const domain = AppState.domain || 'example.com';
+// 生成示例验证数据（仅在没有域名时使用）
+function generateExampleVerificationData(method) {
+    const domain = 'example.com';
+
+    console.log('[示例] 生成示例验证数据（当前未输入域名）');
 
     if (method === 'webserver') {
-        // 基于域名生成确定性的验证数据
-        AppState.challengeFilename = generateDeterministicString(domain + '-filename', 40);
-        AppState.challengeContent = generateDeterministicString(domain + '-content', 87);
+        // 生成随机token（模拟真实ACME行为）
+        AppState.challengeFilename = generateRandomString(40);
+        AppState.challengeContent = generateRandomString(87);
 
         const filenameEl = document.getElementById('challenge-filename');
         const contentEl = document.getElementById('challenge-content');
@@ -469,8 +472,8 @@ function generateMockVerificationData(method) {
             quickCommandEl.textContent = `echo "${AppState.challengeContent}" > /var/www/html/.well-known/acme-challenge/${AppState.challengeFilename}`;
         }
     } else if (method === 'dns') {
-        // 基于域名生成确定性的 DNS 验证值
-        AppState.dnsValue = generateDeterministicString(domain + '-dns', 43);
+        // 生成随机DNS值
+        AppState.dnsValue = generateRandomString(43);
 
         const dnsHostEl = document.getElementById('dns-host');
         const dnsValueEl = document.getElementById('dns-value');
@@ -497,21 +500,24 @@ function bindCertFormatChange() {
 
 // ==================== 显示安装指南 ====================
 async function startCertificateRequest() {
+    // 先显示基本界面，让用户立即看到内容
+    displayInstallationGuideBasicInfo();
+
     // 检查是否已经有证书
     if (AppState.realCertificate) {
-        console.log('[Main] 已有真实证书，直接显示安装指南');
-        displayInstallationGuide();
+        console.log('[Main] 已有真实证书，直接生成证书文件列表');
+        generateCertificateFilesListNow();
         return;
     }
 
-    // 显示加载状态
-    const guideContainer = document.getElementById('installation-guide');
-    guideContainer.innerHTML = `
-        <div class="loading-certificate">
-            <div class="loading-spinner"></div>
-            <h3>正在申请证书...</h3>
-            <p>请稍候，系统正在向 ${AppState.acmeProvider} 申请真实的 SSL 证书</p>
-            <div id="cert-request-log" class="cert-request-log"></div>
+    // 在证书文件列表区域显示加载状态
+    const filesListContainer = document.getElementById('cert-files-list');
+    filesListContainer.innerHTML = `
+        <div class="loading-certificate" style="padding: 2rem; text-align: center;">
+            <div class="loading-spinner" style="margin: 0 auto 1rem;"></div>
+            <h4>正在申请证书...</h4>
+            <p style="color: #64748b; margin-bottom: 1rem;">请稍候，系统正在向 ${AppState.acmeProvider} 申请真实的 SSL 证书</p>
+            <div id="cert-request-log" class="cert-request-log" style="max-height: 300px; overflow-y: auto; text-align: left; background: #f8fafc; padding: 1rem; border-radius: 8px; margin-top: 1rem;"></div>
         </div>
     `;
 
@@ -519,29 +525,29 @@ async function startCertificateRequest() {
         // 调用 ACME 申请流程
         await requestRealCertificateInStep5();
 
-        // 申请成功，显示安装指南
-        displayInstallationGuide();
+        // 申请成功，生成证书文件列表
+        generateCertificateFilesListNow();
 
     } catch (error) {
         console.error('[Main] 证书申请失败:', error);
-        guideContainer.innerHTML = `
-            <div class="error-box">
-                <h3>❌ 证书申请失败</h3>
+        filesListContainer.innerHTML = `
+            <div class="error-box" style="margin: 0;">
+                <h4>❌ 证书申请失败</h4>
                 <p class="error-message">${error.message}</p>
-                <p>请返回步骤3重新验证配置，或检查以下内容：</p>
-                <ul>
+                <p style="margin-top: 1rem;">请返回步骤3重新验证配置，或检查以下内容：</p>
+                <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
                     <li>HTTP-01: 验证文件是否可以通过 HTTP 访问</li>
                     <li>DNS-01: TXT 记录是否已生效</li>
                     <li>域名解析是否正确</li>
                     <li>防火墙是否阻止了访问</li>
                 </ul>
-                <button class="btn btn-secondary" onclick="prevStep(5)">返回上一步</button>
             </div>
         `;
     }
 }
 
-function displayInstallationGuide() {
+// 显示安装指南的基本信息（不包括证书文件列表）
+function displayInstallationGuideBasicInfo() {
     const guideContainer = document.getElementById('installation-guide');
     const formatNameEl = document.getElementById('selected-format-name');
     const formatDisplayEl = document.getElementById('selected-format-display');
@@ -561,9 +567,6 @@ function displayInstallationGuide() {
 
         // 替换域名占位符
         updateDomainDisplay();
-
-        // 生成证书文件下载列表
-        generateCertificateFilesList(selectedFormat);
     }
 
     // 更新验证方式名称
@@ -572,6 +575,22 @@ function displayInstallationGuide() {
         'dns': 'DNS 解析验证（DNS-01）'
     };
     methodNameEl.textContent = methodNames[AppState.verificationMethod] || AppState.verificationMethod;
+}
+
+// 生成证书文件列表（立即执行）
+function generateCertificateFilesListNow() {
+    const certFormatsData = JSON.parse(document.getElementById('cert-formats-data').textContent);
+    const selectedFormat = certFormatsData.formats.find(f => f.id === AppState.certFormat);
+
+    if (selectedFormat) {
+        generateCertificateFilesList(selectedFormat);
+    }
+}
+
+// 保留原displayInstallationGuide函数以兼容
+function displayInstallationGuide() {
+    displayInstallationGuideBasicInfo();
+    generateCertificateFilesListNow();
 }
 
 // ==================== Markdown 转 HTML（简单实现）====================
@@ -663,6 +682,7 @@ function hideError(element) {
 }
 
 // 简单的字符串哈希函数（用于生成确定性的数字）
+// 用于证书序列号生成等场景
 function simpleHash(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -673,32 +693,7 @@ function simpleHash(str) {
     return Math.abs(hash);
 }
 
-// 基于输入字符串生成确定性的随机字符串（改进版）
-function generateDeterministicString(seed, length) {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-    let result = '';
-
-    // 使用种子的多个哈希值创建更好的随机性
-    let hash1 = simpleHash(seed);
-    let hash2 = simpleHash(seed + 'salt1');
-    let hash3 = simpleHash(seed + 'salt2');
-
-    for (let i = 0; i < length; i++) {
-        // 使用三个不同的 LCG 组合，增加随机性
-        hash1 = (hash1 * 1103515245 + 12345) & 0x7fffffff;
-        hash2 = (hash2 * 48271 + 0) & 0x7fffffff;
-        hash3 = (hash3 * 69621 + 0) & 0x7fffffff;
-
-        // 混合三个哈希值
-        const combined = (hash1 ^ hash2 ^ hash3) + i * 2654435761;
-        const index = Math.abs(combined) % chars.length;
-        result += chars.charAt(index);
-    }
-
-    return result;
-}
-
-// 保留原有的随机字符串生成函数（以备不时之需）
+// 生成随机字符串（用于模拟 ACME token）
 function generateRandomString(length) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
     let result = '';
@@ -754,6 +749,83 @@ if (!('scrollBehavior' in document.documentElement.style)) {
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     window.AppState = AppState;
     console.log('Debug mode enabled. Access AppState via window.AppState');
+}
+
+// ==================== 复制快捷命令 ====================
+function copyQuickCommand() {
+    const commandEl = document.getElementById('quick-command');
+    if (!commandEl) {
+        alert('未找到命令内容');
+        return;
+    }
+
+    const command = commandEl.textContent;
+
+    // 使用现代剪贴板API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(command).then(() => {
+            showCopySuccess(event.currentTarget);
+        }).catch(err => {
+            console.error('复制失败:', err);
+            fallbackCopyTextToClipboard(command, event.currentTarget);
+        });
+    } else {
+        // 降级方案
+        fallbackCopyTextToClipboard(command, event.currentTarget);
+    }
+}
+
+// 降级复制方案
+function fallbackCopyTextToClipboard(text, button) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.width = '2em';
+    textArea.style.height = '2em';
+    textArea.style.padding = '0';
+    textArea.style.border = 'none';
+    textArea.style.outline = 'none';
+    textArea.style.boxShadow = 'none';
+    textArea.style.background = 'transparent';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showCopySuccess(button);
+        } else {
+            alert('复制失败，请手动复制');
+        }
+    } catch (err) {
+        console.error('降级复制也失败了:', err);
+        alert('复制失败，请手动复制');
+    }
+
+    document.body.removeChild(textArea);
+}
+
+// 显示复制成功提示
+function showCopySuccess(button) {
+    const originalHTML = button.innerHTML;
+
+    button.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>已复制</span>
+    `;
+    button.style.background = '#10b981';
+    button.style.color = 'white';
+
+    setTimeout(() => {
+        button.innerHTML = originalHTML;
+        button.style.background = '';
+        button.style.color = '';
+    }, 2000);
 }
 
 // ==================== 域名历史记录管理 ====================

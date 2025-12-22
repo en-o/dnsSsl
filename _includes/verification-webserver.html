@@ -38,7 +38,16 @@
                 <p>文件名：<code id="challenge-filename">xxxxxxxxxxxx</code></p>
                 <p>文件内容：<code id="challenge-content">xxxxxxxxxxxx.yyyyyyyyyyyy</code></p>
                 <p><strong>快捷命令（复制粘贴直接执行）：</strong></p>
-                <pre><code id="quick-command">echo "验证内容" > /var/www/html/.well-known/acme-challenge/验证文件名</code></pre>
+                <div style="position: relative;">
+                    <pre><code id="quick-command">echo "验证内容" > /var/www/html/.well-known/acme-challenge/验证文件名</code></pre>
+                    <button type="button" class="copy-btn" onclick="copyQuickCommand()" title="复制命令">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/>
+                            <path d="M5 15H4C2.89543 15 2 14.1046 2 13V4C2 2.89543 2.89543 2 4 2H13C14.1046 2 15 2.89543 15 4V5" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        <span>复制</span>
+                    </button>
+                </div>
                 <p><strong>设置文件权限：</strong></p>
                 <pre><code># 设置文件权限（确保 nginx/apache 用户可以读取）
 chmod 644 /var/www/html/.well-known/acme-challenge/*

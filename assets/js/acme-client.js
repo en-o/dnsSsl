@@ -4,6 +4,56 @@
 // 使用 forge.js 处理加密操作
 
 /**
+ * 生成浏览器指纹（用于隔离不同用户的ACME账户）
+ * 避免所有用户共用一个账户导致速率限制
+ */
+function generateBrowserFingerprint() {
+    // 尝试从localStorage获取已保存的指纹
+    let fingerprint = localStorage.getItem('browser_fingerprint');
+
+    if (fingerprint) {
+        return fingerprint;
+    }
+
+    // 生成新的指纹：基于浏览器特征
+    const components = [
+        navigator.userAgent,
+        navigator.language,
+        screen.width + 'x' + screen.height,
+        screen.colorDepth,
+        new Date().getTimezoneOffset(),
+        !!window.sessionStorage,
+        !!window.localStorage,
+        navigator.hardwareConcurrency || 'unknown',
+        // 添加随机成分，确保每个浏览器会话有唯一ID
+        Math.random().toString(36).substring(2, 15)
+    ];
+
+    // 生成哈希
+    const hash = simpleHashForFingerprint(components.join('|||'));
+    fingerprint = hash.toString(36).substring(0, 12);
+
+    // 保存到localStorage
+    localStorage.setItem('browser_fingerprint', fingerprint);
+
+    console.log('[Fingerprint] 浏览器指纹已生成:', fingerprint);
+    return fingerprint;
+}
+
+/**
+ * 简单哈希函数（用于指纹生成）
+ */
+function simpleHashForFingerprint(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return Math.abs(hash);
+}
+
+/**
  * ACME 客户端
  * 用于向 Let's Encrypt 或 ZeroSSL 申请 SSL 证书
  */
@@ -22,6 +72,10 @@ class AcmeClient {
         this.accountKeyPair = null; // forge keypair
         this.accountUrl = null;
         this.nonce = null;
+
+        // 生成浏览器指纹，用于账户隔离
+        this.browserFingerprint = generateBrowserFingerprint();
+        console.log('[ACME] 使用浏览器指纹:', this.browserFingerprint);
     }
 
     /**
@@ -82,11 +136,12 @@ class AcmeClient {
      * 生成或加载账户密钥对
      */
     async loadOrCreateAccountKey() {
-        // 尝试从 localStorage 加载
-        const savedKey = localStorage.getItem(`acme_account_key_${this.caProvider}`);
+        // 使用浏览器指纹作为key的一部分，隔离不同用户的账户
+        const storageKey = `acme_account_key_${this.caProvider}_${this.browserFingerprint}`;
+        const savedKey = localStorage.getItem(storageKey);
 
         if (savedKey) {
-            console.log('[ACME] 从 localStorage 加载账户密钥');
+            console.log('[ACME] 从 localStorage 加载账户密钥（指纹:', this.browserFingerprint, ')');
             try {
                 const privateKeyPem = savedKey;
                 this.accountKeyPair = {
@@ -98,7 +153,7 @@ class AcmeClient {
                 };
             } catch (error) {
                 console.warn('[ACME] 加载账户密钥失败，将生成新密钥:', error);
-                localStorage.removeItem(`acme_account_key_${this.caProvider}`);
+                localStorage.removeItem(storageKey);
                 await this.loadOrCreateAccountKey();
                 return;
             }
@@ -106,10 +161,10 @@ class AcmeClient {
             console.log('[ACME] 生成新的账户密钥对（2048位RSA）...');
             this.accountKeyPair = forge.pki.rsa.generateKeyPair({ bits: 2048, workers: -1 });
 
-            // 保存到 localStorage
+            // 保存到 localStorage（使用指纹隔离）
             const privateKeyPem = forge.pki.privateKeyToPem(this.accountKeyPair.privateKey);
-            localStorage.setItem(`acme_account_key_${this.caProvider}`, privateKeyPem);
-            console.log('[ACME] 账户密钥已保存到 localStorage');
+            localStorage.setItem(storageKey, privateKeyPem);
+            console.log('[ACME] 账户密钥已保存到 localStorage（指纹:', this.browserFingerprint, ')');
         }
     }
 
@@ -317,10 +372,12 @@ class AcmeClient {
      * 创建或获取账户
      */
     async createAccount(email) {
-        console.log('[ACME] 正在创建/获取账户...');
+        console.log('[ACME] 正在创建/获取账户（指纹:', this.browserFingerprint, ')...');
 
-        // 检查是否已有账户
-        const savedAccountUrl = localStorage.getItem(`acme_account_url_${this.caProvider}`);
+        // 检查是否已有账户（使用指纹隔离）
+        const storageKey = `acme_account_url_${this.caProvider}_${this.browserFingerprint}`;
+        const savedAccountUrl = localStorage.getItem(storageKey);
+
         if (savedAccountUrl) {
             this.accountUrl = savedAccountUrl;
             console.log('[ACME] 使用已存在的账户:', this.accountUrl);
@@ -338,10 +395,11 @@ class AcmeClient {
         const response = await this.sendJWS(this.directory.newAccount, payload);
         this.accountUrl = response.location;
 
-        // 保存账户 URL
-        localStorage.setItem(`acme_account_url_${this.caProvider}`, this.accountUrl);
+        // 保存账户 URL（使用指纹隔离）
+        localStorage.setItem(storageKey, this.accountUrl);
 
         console.log('[ACME] 账户创建成功:', this.accountUrl);
+        console.log('[ACME] 此账户仅供当前浏览器使用，不会与其他用户冲突');
     }
 
     /**
