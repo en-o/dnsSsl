@@ -195,7 +195,18 @@ class AcmeClient {
 
         // Base64url 编码（使用排序后的对象）
         const protectedB64 = this.base64url(JSON.stringify(orderedHeader));
-        const payloadB64 = payload ? this.base64url(JSON.stringify(payload)) : '';
+
+        // Payload 也需要排序
+        let payloadB64;
+        if (payload) {
+            const orderedPayload = this.orderObject(payload);
+            payloadB64 = this.base64url(JSON.stringify(orderedPayload));
+        } else {
+            payloadB64 = '';
+        }
+
+        console.log('[ACME] Protected (base64url):', protectedB64.substring(0, 50) + '...');
+        console.log('[ACME] Payload (base64url):', payloadB64.substring(0, 50) + '...');
 
         // 签名
         const signatureInput = `${protectedB64}.${payloadB64}`;
@@ -203,6 +214,8 @@ class AcmeClient {
         md.update(signatureInput, 'utf8');
         const signature = this.accountKeyPair.privateKey.sign(md);
         const signatureB64 = this.base64url(signature);
+
+        console.log('[ACME] Signature (base64url):', signatureB64.substring(0, 50) + '...');
 
         const jws = {
             protected: protectedB64,
@@ -359,7 +372,9 @@ class AcmeClient {
 
         // 计算 keyAuthorization = token + '.' + base64url(SHA256(JWK))
         const jwk = this.publicKeyToJWK(this.accountKeyPair.publicKey);
-        const jwkJson = JSON.stringify(jwk);
+        // JWK 必须按字母顺序排列后再计算 thumbprint
+        const orderedJwk = this.orderObject(jwk);
+        const jwkJson = JSON.stringify(orderedJwk);
         const md = forge.md.sha256.create();
         md.update(jwkJson, 'utf8');
         const thumbprint = this.base64url(md.digest().bytes());
@@ -382,7 +397,9 @@ class AcmeClient {
 
         // 计算 keyAuthorization
         const jwk = this.publicKeyToJWK(this.accountKeyPair.publicKey);
-        const jwkJson = JSON.stringify(jwk);
+        // JWK 必须按字母顺序排列后再计算 thumbprint
+        const orderedJwk = this.orderObject(jwk);
+        const jwkJson = JSON.stringify(orderedJwk);
         const md1 = forge.md.sha256.create();
         md1.update(jwkJson, 'utf8');
         const thumbprint = this.base64url(md1.digest().bytes());

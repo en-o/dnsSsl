@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>清除 ACME 缓存</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #c0392b;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <h1>清除 ACME 缓存</h1>
+    <p>如果 ACME 证书申请一直失败，可以尝试清除缓存的账户密钥，重新生成。</p>
+    <button onclick="clearCache()">清除 ACME 缓存</button>
+    <div id="result"></div>
+
+    <script>
+        function clearCache() {
+            localStorage.removeItem('acme_account_key_letsencrypt');
+            localStorage.removeItem('acme_account_url_letsencrypt');
+            localStorage.removeItem('acme_account_key_zerossl');
+            localStorage.removeItem('acme_account_url_zerossl');
+            
+            document.getElementById('result').innerHTML = '<div class="result success">✓ ACME 缓存已清除！请返回主页重新申请证书。</div>';
+        }
+    </script>
+</body>
+</html>
