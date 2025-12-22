@@ -3,9 +3,6 @@ source "https://rubygems.org"
 # Jekyll 版本
 gem "jekyll", "~> 4.3.3"
 
-# 主题
-gem "minima", "~> 2.5"
-
 # Ruby 3.4+ 需要的标准库（不再是默认 gem）
 gem "csv"
 gem "logger"
