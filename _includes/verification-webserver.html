@@ -29,6 +29,13 @@
                 <p>文件内容：<code id="challenge-content">xxxxxxxxxxxx.yyyyyyyyyyyy</code></p>
                 <p><strong>快捷命令（复制粘贴直接执行）：</strong></p>
                 <pre><code id="quick-command">echo "验证内容" > /var/www/html/.well-known/acme-challenge/验证文件名</code></pre>
+                <p><strong>设置文件权限：</strong></p>
+                <pre><code># 设置文件权限（确保 nginx/apache 用户可以读取）
+chmod 644 /var/www/html/.well-known/acme-challenge/*
+chown -R nginx:nginx /var/www/html/.well-known/
+
+# 如果是 Apache，使用：
+# chown -R www-data:www-data /var/www/html/.well-known/</code></pre>
             </li>
             <li>
                 <strong>配置 Nginx（示例）：
@@ -260,9 +267,29 @@ sudo systemctl reload apache2
 # 重启 Tomcat 服务</code></pre>
             </li>
             <li>
-                <strong>验证访问：</strong>
-                <p>确保可以通过浏览器或 curl 访问：</p>
-                <pre><code>curl http://<span class="domain-placeholder">example.com</span>/.well-known/acme-challenge/验证文件名</code></pre>
+                <strong>验证配置是否正确（重要步骤）：</strong>
+                <pre><code># 1. 检查 Nginx 配置语法
+nginx -t
+
+# 2. 如果语法正确，重新加载配置
+nginx -s reload
+
+# 3. 确认验证文件存在且可读
+ls -la /var/www/html/.well-known/acme-challenge/<span class="domain-placeholder">验证文件名</span>
+
+# 4. 测试 HTTP 访问（应该返回文件内容，不应该是 301/302 重定向）
+curl -v http://<span class="domain-placeholder">example.com</span>/.well-known/acme-challenge/<span class="domain-placeholder">验证文件名</span>
+
+# 预期结果：
+# &lt; HTTP/1.1 200 OK
+# 验证文件内容...
+#
+# ⚠️ 如果看到 301/302 或 https://，说明被重定向了，需要修改 Nginx 配置
+# ⚠️ 如果返回 404，检查 root 路径是否正确
+# ⚠️ 如果返回 403，检查文件权限
+
+# 5. 如果遇到问题，查看 Nginx 错误日志
+tail -f /var/log/nginx/error.log</code></pre>
             </li>
         </ol>
     </div>
