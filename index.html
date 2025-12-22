@@ -70,12 +70,16 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
             <div class="form-group">
                 <label for="acme-provider">ACME CA 提供商：</label>
                 <select id="acme-provider" class="form-select">
-                    <option value="letsencrypt" selected>Let's Encrypt（推荐）</option>
+                    <option value="letsencrypt" selected>Let's Encrypt（生产环境）</option>
+                    <option value="letsencrypt-staging">Let's Encrypt Staging（测试环境 - 推荐用于学习）</option>
                     <option value="zerossl">ZeroSSL</option>
                     <option value="buypass">Buypass</option>
                     <option value="google">Google Trust Services</option>
                 </select>
-                <p class="input-hint">Let's Encrypt 是全球最流行的免费 SSL 证书服务</p>
+                <p class="input-hint">
+                    <strong>测试建议：</strong>首次使用请选择 "Let's Encrypt Staging"，避免触发速率限制<br>
+                    <span style="color: #ef4444;">⚠️ 生产环境每个域名每周最多申请5次，超过限制需等待7天</span>
+                </p>
             </div>
 
             <div class="ca-info-box">
@@ -86,6 +90,18 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                     <li>证书有效期 90 天，支持自动续期</li>
                     <li>支持单域名、多域名和通配符证书</li>
                 </ul>
+            </div>
+
+            <div class="ca-info-box" style="background: #fef3c7; border: 2px solid #f59e0b;">
+                <h4 style="color: #92400e;">📋 Staging 环境说明</h4>
+                <p style="color: #78350f; margin-bottom: 8px;"><strong>Staging 环境（测试环境）用途：</strong></p>
+                <ul style="color: #78350f;">
+                    <li><strong>学习和测试：</strong>无速率限制，可以无限次测试</li>
+                    <li><strong>流程完全相同：</strong>与生产环境的申请流程100%一致</li>
+                    <li><strong>证书不受信任：</strong>浏览器会显示"不安全"（这是正常的）</li>
+                    <li><strong>切换简单：</strong>测试成功后，切换到生产环境即可获得真实证书</li>
+                </ul>
+                <p style="margin-top: 8px; font-size: 14px; color: #92400e;">💡 首次使用强烈建议先用 Staging 环境练习，避免触发速率限制</p>
             </div>
 
             <div class="ca-info-box" style="background: #fef2f2; border-left: 4px solid #ef4444;">

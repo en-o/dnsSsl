@@ -487,9 +487,43 @@ async function getRealAcmeChallengeForStep2(method) {
 
     } catch (error) {
         console.error('[Step2] 获取 ACME 挑战数据失败:', error);
-        // 显示错误信息
-        alert('获取验证数据失败：' + error.message + '\n\n请检查网络连接后重试。');
-        throw error;
+
+        // 检查是否是速率限制错误
+        if (error.name === 'RateLimitError' || (error.message && error.message.includes('rateLimited')) || (error.type && error.type.includes('rateLimited'))) {
+            // 速率限制错误 - 提供详细说明和解决方案
+            const errorMsg = `⚠️ Let's Encrypt 速率限制
+
+您的域名 "${domain}" 在过去7天内已申请了5次证书，达到速率限制。
+
+解决方案：
+1. 【推荐】切换到 "Let's Encrypt Staging" 测试环境
+   - 返回步骤1，选择 "Let's Encrypt Staging（测试环境）"
+   - Staging 环境速率限制更宽松，适合测试学习
+
+2. 等待限制解除
+   - 需要等到 7 天后才能再次申请
+   - 查看详情：https://letsencrypt.org/docs/rate-limits/
+
+3. 使用不同的域名进行测试
+
+💡 提示：Staging 环境颁发的证书不被浏览器信任，但流程完全相同，适合学习和测试。`;
+
+            alert(errorMsg);
+
+            // 禁用步骤2的下一步按钮
+            disableStep2NextButton('❌ 速率限制，请切换到 Staging 环境或使用其他域名');
+            return; // 不要 throw，避免未捕获的异常
+        }
+
+        // 其他错误
+        let errorMsg = '获取验证数据失败：' + error.message;
+
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+            errorMsg += '\n\n可能的原因：\n1. 网络连接问题\n2. 防火墙/代理拦截\n3. ACME 服务器暂时不可用\n\n请检查网络连接后重试。';
+        }
+
+        alert(errorMsg);
+        disableStep2NextButton('❌ 获取验证数据失败');
     }
 }
 
@@ -698,6 +732,25 @@ function displayInstallationGuideBasicInfo() {
         'dns': 'DNS 解析验证（DNS-01）'
     };
     methodNameEl.textContent = methodNames[AppState.verificationMethod] || AppState.verificationMethod;
+
+    // 如果是 Staging 环境，显示特别提示
+    if (AppState.acmeProvider === 'letsencrypt-staging') {
+        const successBox = document.querySelector('.success-box');
+        if (successBox) {
+            const stagingNotice = document.createElement('div');
+            stagingNotice.className = 'staging-notice';
+            stagingNotice.style.cssText = 'margin-top: 1rem; padding: 1rem; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px;';
+            stagingNotice.innerHTML = `
+                <h4 style="color: #92400e; margin-bottom: 0.5rem;">⚠️ 这是 Staging 环境证书</h4>
+                <p style="color: #78350f; margin: 0; font-size: 0.9rem;">
+                    此证书由 Let's Encrypt Staging 环境颁发，<strong>不受浏览器信任</strong>（会显示"不安全"）。<br>
+                    这是正常的，因为这是测试环境。<br><br>
+                    <strong>如需获取真实证书：</strong>返回步骤1，选择 "Let's Encrypt（生产环境）" 重新申请。
+                </p>
+            `;
+            successBox.appendChild(stagingNotice);
+        }
+    }
 }
 
 // 生成证书文件列表（立即执行）

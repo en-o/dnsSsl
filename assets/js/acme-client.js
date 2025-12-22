@@ -353,7 +353,20 @@ class AcmeClient {
 
             if (!response.ok) {
                 console.error('[ACME] 请求失败:', responseData);
+
+                // 提取错误类型和详细信息
+                const errorType = responseData.type || '';
                 const errorDetail = responseData.detail || responseData.message || response.statusText;
+
+                // 如果是速率限制错误，抛出特殊错误以便上层识别
+                if (errorType.includes('rateLimited')) {
+                    const rateLimitError = new Error(errorDetail);
+                    rateLimitError.name = 'RateLimitError';
+                    rateLimitError.type = errorType;
+                    rateLimitError.detail = errorDetail;
+                    throw rateLimitError;
+                }
+
                 throw new Error(`ACME 请求失败: ${errorDetail}`);
             }
 
