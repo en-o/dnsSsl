@@ -480,12 +480,7 @@ ${generateRandomBase64(64)}
 ${generateRandomBase64(64)}
 CwIDAQABAoIBAHg${generateRandomBase64(64)}
 ${generateRandomBase64(64)}==
------END PRIVATE KEY-----
-
-⚠️  警告：请妥善保管此私钥文件，不要泄露给任何人！
-Domain: ${cleanDomain}
-Generated: ${timestamp}
-`;
+-----END PRIVATE KEY-----`;
     } else if (fileName.includes('.pem') || fileName.includes('.crt') || fileName.includes('.cer')) {
         // PEM/CRT/CER 格式证书文件（fullchain.pem, cert.pem, chain.pem, root.cer等）
         return `-----BEGIN CERTIFICATE-----
@@ -508,14 +503,7 @@ AiA${generateRandomBase64(44)}AHYAVYHUwhaQNgFK
 AiBN${generateRandomBase64(44)}MAoGCCqGSM49BAMC
 A0gAMEUCIQD${generateRandomBase64(43)}AiAa
 ${generateRandomBase64(64)}
------END CERTIFICATE-----
-
-Domain: ${cleanDomain}
-Issuer: Let's Encrypt
-Valid From: ${notBefore.toUTCString()}
-Valid Until: ${notAfter.toUTCString()}
-Serial Number: ${serialNumber}
-`;
+-----END CERTIFICATE-----`;
     } else if (fileName.includes('.pfx') || fileName.includes('.p12')) {
         // PKCS#12 格式（二进制，这里用文本说明）
         return `此文件为二进制格式的 PKCS#12 证书文件。
@@ -581,11 +569,7 @@ ${generateRandomBase64(64)}
 ${generateRandomBase64(64)}
 CwIDAQABoAAwDQYJKoZIhvcNAQELBQADggEBAF${generateRandomBase64(64)}
 ${generateRandomBase64(64)}==
------END CERTIFICATE REQUEST-----
-
-Domain: ${cleanDomain}
-Generated: ${timestamp}
-`;
+-----END CERTIFICATE REQUEST-----`;
     } else {
         // 默认通用说明
         return `SSL 证书文件
