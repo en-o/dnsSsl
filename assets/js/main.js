@@ -148,13 +148,7 @@ function validateVerificationMethod() {
 }
 
 function validateChecklist() {
-    const checkboxes = document.querySelectorAll('.checklist-item input[type="checkbox"]');
-    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-
-    if (!allChecked) {
-        alert('请确认您已完成所有验证步骤');
-        return false;
-    }
+    // 步骤3已改为自动验证，总是返回true
     return true;
 }
 
@@ -192,7 +186,8 @@ function onStepEnter(step) {
             showVerificationMethod(AppState.verificationMethod);
             break;
         case 3:
-            // 可以在这里添加验证方式回顾
+            // 进入步骤3时，准备验证界面
+            prepareVerificationUI();
             break;
         case 4:
             // 可以在这里添加默认格式选择逻辑

@@ -843,3 +843,182 @@ body {
 .mb-lg {
     margin-bottom: var(--spacing-lg);
 }
+
+/* ==================== 验证相关样式 ==================== */
+
+/* 验证信息摘要 */
+.verification-summary {
+    background: var(--bg-secondary);
+    padding: var(--spacing-lg);
+    border-radius: var(--border-radius);
+    margin-bottom: var(--spacing-xl);
+    border: 1px solid var(--border-color);
+}
+
+.verification-summary h3 {
+    margin-bottom: var(--spacing-md);
+    color: var(--text-primary);
+}
+
+.summary-item {
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.summary-item:last-child {
+    border-bottom: none;
+}
+
+.summary-item strong {
+    display: inline-block;
+    min-width: 100px;
+    color: var(--text-primary);
+}
+
+/* 验证状态显示 */
+.verification-status {
+    text-align: center;
+    padding: var(--spacing-2xl) var(--spacing-lg);
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    margin: var(--spacing-xl) 0;
+}
+
+.status-icon {
+    margin-bottom: var(--spacing-md);
+}
+
+.status-loading {
+    color: var(--info-color);
+}
+
+.status-success {
+    color: var(--success-color);
+}
+
+.status-error {
+    color: var(--danger-color);
+}
+
+.verification-status h3 {
+    margin-bottom: var(--spacing-sm);
+}
+
+/* 旋转动画 */
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.rotating {
+    animation: rotate 1s linear infinite;
+}
+
+/* 验证详情框 */
+.verification-details-box {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+    margin: var(--spacing-xl) 0;
+}
+
+.verification-details-box h4 {
+    margin-bottom: var(--spacing-md);
+    color: var(--text-primary);
+}
+
+/* 验证日志 */
+.verification-log {
+    background: var(--text-primary);
+    color: #e2e8f0;
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius);
+    max-height: 300px;
+    overflow-y: auto;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.875rem;
+}
+
+.log-entry {
+    padding: var(--spacing-xs) 0;
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: flex-start;
+}
+
+.log-time {
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+
+.log-icon {
+    flex-shrink: 0;
+    font-weight: bold;
+}
+
+.log-message {
+    flex: 1;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.log-success .log-icon {
+    color: var(--success-color);
+}
+
+.log-error .log-icon {
+    color: var(--danger-color);
+}
+
+.log-warning .log-icon {
+    color: var(--warning-color);
+}
+
+.log-info .log-icon {
+    color: var(--info-color);
+}
+
+/* 验证结果状态框 */
+.status-pending,
+.status-loading,
+.status-success,
+.status-error {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* info-box 中的 note 样式 */
+.info-box .note {
+    font-size: 0.875rem;
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid rgba(59, 130, 246, 0.2);
+    color: var(--text-secondary);
+}
+
+/* 验证目标容器 */
+#verification-target-container {
+    word-break: break-all;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+    .verification-log {
+        font-size: 0.75rem;
+        max-height: 200px;
+    }
+    
+    .log-entry {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+    }
+    
+    .summary-item strong {
+        display: block;
+        margin-bottom: var(--spacing-xs);
+    }
+}

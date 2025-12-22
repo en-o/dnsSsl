@@ -98,26 +98,45 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
         </div>
     </div>
 
-    <!-- 步骤 3: 完成验证 -->
+    <!-- 步骤 3: 自动验证 -->
     <div class="step-content" id="step-3" style="display: none;">
         <div class="step-card">
-            <h2>步骤 3：完成验证</h2>
-            <p class="step-description">请确认您已按照上一步的指引完成了域名验证配置。</p>
+            <h2>步骤 3：自动验证配置</h2>
+            <p class="step-description">系统将自动验证您的配置是否正确。</p>
 
-            <div class="verification-checklist">
-                <h3>验证清单：</h3>
-                <div class="checklist-item">
-                    <input type="checkbox" id="check-1">
-                    <label for="check-1">我已按照指引完成配置</label>
+            <!-- 验证信息摘要 -->
+            <div class="verification-summary">
+                <h3>验证信息：</h3>
+                <div class="summary-item">
+                    <strong>域名：</strong>
+                    <span class="domain-display"></span>
                 </div>
-                <div class="checklist-item">
-                    <input type="checkbox" id="check-2">
-                    <label for="check-2">我已验证配置是否生效（如访问验证 URL 或查询 DNS 记录）</label>
+                <div class="summary-item">
+                    <strong>验证方式：</strong>
+                    <span id="verification-method-display"></span>
                 </div>
-                <div class="checklist-item">
-                    <input type="checkbox" id="check-3">
-                    <label for="check-3">确认验证文件/DNS 记录可正常访问</label>
+                <div class="summary-item" id="verification-target-container">
+                    <strong id="verification-target-label">验证目标：</strong>
+                    <span id="verification-target-value"></span>
                 </div>
+            </div>
+
+            <!-- 验证状态显示区域 -->
+            <div class="verification-status" id="verification-status">
+                <div class="status-pending">
+                    <svg class="status-icon rotating" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" opacity="0.25"/>
+                        <path d="M12 2 A10 10 0 0 1 22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <h3>等待开始验证...</h3>
+                    <p>请点击"开始验证"按钮</p>
+                </div>
+            </div>
+
+            <!-- 验证详情（可展开） -->
+            <div class="verification-details-box" id="verification-details-box" style="display: none;">
+                <h4>验证详情：</h4>
+                <div class="verification-log" id="verification-log"></div>
             </div>
 
             <div class="info-box">
@@ -127,19 +146,17 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                     <circle cx="12" cy="8" r="1" fill="currentColor"/>
                 </svg>
                 <div class="info-content">
-                    <strong>提示：</strong>
-                    <p>本工具是静态引导页面，实际的证书申请需要在您的服务器上使用 ACME 客户端完成，推荐工具：</p>
-                    <ul>
-                        <li><strong>Certbot</strong>（官方推荐）：<a href="https://certbot.eff.org/" target="_blank">https://certbot.eff.org/</a></li>
-                        <li><strong>acme.sh</strong>（纯 Shell 实现）：<a href="https://acme.sh/" target="_blank">https://acme.sh/</a></li>
-                        <li><strong>Caddy</strong>（自动 HTTPS）：<a href="https://caddyserver.com/" target="_blank">https://caddyserver.com/</a></li>
-                    </ul>
+                    <strong>关于验证：</strong>
+                    <p><strong>Web 服务器验证：</strong>系统会尝试通过 HTTP 访问验证文件。</p>
+                    <p><strong>DNS 验证：</strong>系统会查询 DNS TXT 记录（使用公共 DNS 服务器）。</p>
+                    <p class="note">注意：由于浏览器的 CORS 限制，HTTP 验证可能无法直接执行。DNS 验证可通过 DoH (DNS over HTTPS) 实现。</p>
                 </div>
             </div>
 
             <div class="button-group">
                 <button class="btn btn-secondary" onclick="prevStep(3)">上一步</button>
-                <button class="btn btn-primary" onclick="nextStep(3)" id="verify-button">验证完成，继续</button>
+                <button class="btn btn-primary" onclick="startVerification()" id="verify-start-button">开始验证</button>
+                <button class="btn btn-primary" onclick="nextStep(3)" id="verify-continue-button" style="display: none;">继续下一步</button>
             </div>
         </div>
     </div>

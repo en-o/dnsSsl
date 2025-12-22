@@ -6,7 +6,6 @@ url: "ssl.tannn.cn" # 网站 URL，如 "https://yourusername.github.io"
 
 # 构建设置
 markdown: kramdown
-theme: minima
 plugins:
   - jekyll-feed
   - jekyll-seo-tag
