@@ -1,29 +1,29 @@
 /* ==================== 全局样式 ==================== */
 :root {
-    --primary-color: #2563eb;
-    --primary-hover: #1d4ed8;
-    --secondary-color: #64748b;
-    --success-color: #10b981;
-    --danger-color: #ef4444;
-    --warning-color: #f59e0b;
-    --info-color: #3b82f6;
+    --primary-color: #000000;
+    --primary-hover: #333333;
+    --secondary-color: #666666;
+    --success-color: #00ff00;
+    --danger-color: #ff0000;
+    --warning-color: #ff8800;
+    --info-color: #0088ff;
 
     --bg-color: #ffffff;
-    --bg-secondary: #f8fafc;
-    --bg-hover: #f1f5f9;
+    --bg-secondary: #f5f5f5;
+    --bg-hover: #e0e0e0;
 
-    --text-primary: #0f172a;
-    --text-secondary: #475569;
-    --text-muted: #94a3b8;
+    --text-primary: #000000;
+    --text-secondary: #333333;
+    --text-muted: #666666;
 
-    --border-color: #e2e8f0;
-    --border-radius: 8px;
-    --border-radius-lg: 12px;
+    --border-color: #000000;
+    --border-radius: 0px;
+    --border-radius-lg: 0px;
 
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-sm: 0 0 0 0 transparent;
+    --shadow: 0 0 0 0 transparent;
+    --shadow-md: 0 0 0 0 transparent;
+    --shadow-lg: 0 0 0 0 transparent;
 
     --spacing-xs: 0.5rem;
     --spacing-sm: 0.75rem;
@@ -40,12 +40,15 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    font-family: 'Courier New', 'Consolas', 'Monaco', 'Lucida Console', monospace;
     line-height: 1.6;
     color: var(--text-primary);
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #ffffff;
     min-height: 100vh;
     padding: var(--spacing-lg);
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
 }
 
 .container {
@@ -57,7 +60,10 @@ body {
 .site-header {
     text-align: center;
     margin-bottom: var(--spacing-2xl);
-    color: white;
+    color: var(--text-primary);
+    border: 2px solid var(--border-color);
+    padding: var(--spacing-lg);
+    background: var(--bg-color);
 }
 
 .header-content {
@@ -87,7 +93,7 @@ body {
 /* ==================== 向导容器 ==================== */
 .wizard-container {
     background: var(--bg-color);
-    border-radius: var(--border-radius-lg);
+    border: 2px solid var(--border-color);
     box-shadow: var(--shadow-lg);
     padding: var(--spacing-2xl);
     animation: fadeInUp 0.6s ease-out;
@@ -114,14 +120,14 @@ body {
 .step-number {
     width: 40px;
     height: 40px;
-    border-radius: 50%;
+    border-radius: 0;
     background: var(--bg-secondary);
     color: var(--text-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    border: 2px solid var(--border-color);
+    border: 1px solid var(--border-color);
     transition: all 0.3s ease;
 }
 
@@ -134,7 +140,7 @@ body {
 
 .step.active .step-number {
     background: var(--primary-color);
-    color: white;
+    color: #ffffff;
     border-color: var(--primary-color);
     transform: scale(1.1);
 }
@@ -146,7 +152,7 @@ body {
 
 .step.completed .step-number {
     background: var(--success-color);
-    color: white;
+    color: #ffffff;
     border-color: var(--success-color);
 }
 
@@ -231,6 +237,7 @@ body {
     border-color: var(--primary-color);
     background: var(--bg-secondary);
     color: var(--primary-color);
+    box-shadow: 2px 2px 0 var(--primary-color);
 }
 
 .history-toggle-btn svg {
@@ -243,7 +250,7 @@ body {
     background: var(--bg-secondary);
     border: 2px solid var(--border-color);
     border-radius: var(--border-radius);
-    box-shadow: var(--shadow-md);
+    box-shadow: 4px 4px 0 var(--primary-color);
     max-height: 250px;
     overflow-y: auto;
     animation: fadeIn 0.2s ease-out;
@@ -271,16 +278,18 @@ body {
     padding: 4px var(--spacing-sm);
     background: transparent;
     border: 1px solid var(--danger-color);
-    border-radius: 4px;
+    border-radius: 0;
     color: var(--danger-color);
     font-size: 0.75rem;
     cursor: pointer;
     transition: all 0.2s ease;
+    font-family: 'Courier New', 'Consolas', 'Monaco', 'Lucida Console', monospace;
 }
 
 .clear-history-btn:hover {
     background: var(--danger-color);
-    color: white;
+    color: #ffffff;
+    box-shadow: 2px 2px 0 var(--danger-color);
 }
 
 .history-list {
@@ -333,7 +342,7 @@ body {
 
 .history-item-delete:hover {
     background: var(--danger-color);
-    color: white;
+    color: #ffffff;
 }
 
 .history-empty {
@@ -351,13 +360,16 @@ body {
     border-radius: var(--border-radius);
     font-size: 1rem;
     transition: all 0.2s ease;
+    background: var(--bg-color);
+    color: var(--text-primary);
+    font-family: 'Courier New', 'Consolas', 'Monaco', 'Lucida Console', monospace;
 }
 
 .form-input:focus,
 .form-select:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 2px var(--primary-color);
 }
 
 .input-hint {
@@ -382,8 +394,8 @@ body {
 }
 
 .info-box {
-    background: #eff6ff;
-    border-left: 4px solid var(--info-color);
+    background: var(--bg-secondary);
+    border: 1px solid var(--info-color);
     display: flex;
     gap: var(--spacing-md);
 }
@@ -410,7 +422,7 @@ body {
 }
 
 .ca-info-box li:before {
-    content: "✓";
+    content: ">";
     position: absolute;
     left: 0;
     color: var(--success-color);
@@ -418,7 +430,7 @@ body {
 }
 
 .success-box {
-    background: #f0fdf4;
+    background: var(--bg-secondary);
     border: 2px solid var(--success-color);
     text-align: center;
 }
@@ -462,17 +474,19 @@ body {
     border: 2px solid var(--border-color);
     border-radius: var(--border-radius);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
+    background: var(--bg-secondary);
 }
 
 .verification-option input[type="radio"]:checked + label {
     border-color: var(--primary-color);
-    background: #eff6ff;
+    background: var(--bg-hover);
+    box-shadow: 4px 4px 0 var(--primary-color);
 }
 
 .verification-option label:hover {
     border-color: var(--primary-color);
-    box-shadow: var(--shadow-md);
+    box-shadow: 2px 2px 0 var(--primary-color);
 }
 
 .option-header {
@@ -551,12 +565,13 @@ body {
 }
 
 .method-steps pre {
-    background: var(--text-primary);
-    color: #e2e8f0;
+    background: var(--bg-color);
+    color: var(--text-primary);
     padding: var(--spacing-md);
     border-radius: var(--border-radius);
     overflow-x: auto;
     margin: var(--spacing-sm) 0;
+    border: 1px solid var(--border-color);
 }
 
 .method-steps code {
@@ -576,10 +591,12 @@ body {
 }
 
 .dns-record-info code {
-    background: white;
+    background: var(--bg-color);
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 0.875rem;
+    color: var(--primary-color);
+    border: 1px solid var(--border-color);
 }
 
 .method-notes ul {
@@ -613,7 +630,7 @@ body {
 
 .provider-links a {
     padding: var(--spacing-xs) var(--spacing-md);
-    background: white;
+    background: var(--bg-color);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     text-decoration: none;
@@ -622,9 +639,10 @@ body {
 }
 
 .provider-links a:hover {
-    background: var(--primary-color);
-    color: white;
+    background: var(--bg-hover);
+    color: var(--primary-hover);
     border-color: var(--primary-color);
+    box-shadow: 2px 2px 0 var(--primary-color);
 }
 
 /* ==================== 验证清单 ==================== */
@@ -680,17 +698,19 @@ body {
     border: 2px solid var(--border-color);
     border-radius: var(--border-radius);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
+    background: var(--bg-secondary);
 }
 
 .cert-format-option input[type="radio"]:checked + label {
     border-color: var(--primary-color);
-    background: #eff6ff;
+    background: var(--bg-hover);
+    box-shadow: 4px 4px 0 var(--primary-color);
 }
 
 .cert-format-option label:hover {
     border-color: var(--primary-color);
-    box-shadow: var(--shadow-md);
+    box-shadow: 2px 2px 0 var(--primary-color);
 }
 
 .format-header {
@@ -720,11 +740,12 @@ body {
 }
 
 .format-files code {
-    background: white;
+    background: var(--bg-color);
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 0.875rem;
     color: var(--primary-color);
+    border: 1px solid var(--border-color);
 }
 
 /* ==================== 安装指南 ==================== */
@@ -748,12 +769,13 @@ body {
 }
 
 .installation-guide pre {
-    background: var(--text-primary);
-    color: #e2e8f0;
+    background: var(--bg-color);
+    color: var(--text-primary);
     padding: var(--spacing-md);
     border-radius: var(--border-radius);
     overflow-x: auto;
     margin: var(--spacing-md) 0;
+    border: 1px solid var(--border-color);
 }
 
 .installation-guide code {
@@ -762,10 +784,11 @@ body {
 }
 
 .installation-guide p code {
-    background: white;
+    background: var(--bg-color);
     color: var(--primary-color);
     padding: 2px 6px;
     border-radius: 4px;
+    border: 1px solid var(--border-color);
 }
 
 /* ==================== 按钮 ==================== */
@@ -778,35 +801,42 @@ body {
 
 .btn {
     padding: var(--spacing-sm) var(--spacing-xl);
-    border: none;
+    border: 2px solid var(--border-color);
     border-radius: var(--border-radius);
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
     min-width: 120px;
+    font-family: 'Courier New', 'Consolas', 'Monaco', 'Lucida Console', monospace;
+    text-transform: uppercase;
+    letter-spacing: 2px;
 }
 
 .btn-primary {
     background: var(--primary-color);
-    color: white;
+    color: #ffffff;
+    border-color: var(--primary-color);
 }
 
 .btn-primary:hover {
-    background: var(--primary-hover);
+    background: #ffffff;
+    color: var(--primary-color);
     transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    box-shadow: 4px 4px 0 var(--primary-color);
 }
 
 .btn-secondary {
-    background: var(--secondary-color);
-    color: white;
+    background: var(--bg-color);
+    color: var(--text-primary);
+    border-color: var(--text-primary);
 }
 
 .btn-secondary:hover {
-    background: #475569;
+    background: var(--text-primary);
+    color: #ffffff;
     transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    box-shadow: 4px 4px 0 var(--text-primary);
 }
 
 .btn:disabled {
@@ -819,8 +849,10 @@ body {
 .site-footer {
     margin-top: var(--spacing-2xl);
     text-align: center;
-    color: white;
+    color: var(--text-primary);
     opacity: 0.9;
+    border-top: 1px solid var(--border-color);
+    padding-top: var(--spacing-lg);
 }
 
 .footer-content p {
@@ -828,13 +860,14 @@ body {
 }
 
 .footer-links a {
-    color: white;
+    color: var(--text-primary);
     text-decoration: none;
     margin: 0 var(--spacing-sm);
 }
 
 .footer-links a:hover {
     text-decoration: underline;
+    color: var(--primary-color);
 }
 
 .footer-note {
@@ -1051,7 +1084,7 @@ body {
     display: flex;
     align-items: center;
     padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--bg-color);
+    background: var(--bg-secondary);
     border: 2px solid var(--border-color);
     border-radius: var(--border-radius);
     cursor: pointer;
@@ -1060,7 +1093,8 @@ body {
 
 .dns-provider-option:hover {
     border-color: var(--primary-color);
-    background: #eff6ff;
+    background: var(--bg-hover);
+    box-shadow: 2px 2px 0 var(--primary-color);
 }
 
 .dns-provider-option input[type="radio"] {
@@ -1074,7 +1108,8 @@ body {
 
 .dns-provider-option:has(input[type="radio"]:checked) {
     border-color: var(--primary-color);
-    background: #eff6ff;
+    background: var(--bg-hover);
+    box-shadow: 4px 4px 0 var(--primary-color);
 }
 
 .provider-info {
@@ -1125,8 +1160,8 @@ body {
 
 /* DNS 记录添加说明框 */
 .dns-instruction-box {
-    background: #fef3c7;
-    border: 2px solid #f59e0b;
+    background: var(--bg-secondary);
+    border: 1px solid var(--warning-color);
     border-radius: var(--border-radius);
     padding: var(--spacing-lg);
     margin-bottom: var(--spacing-xl);
@@ -1134,7 +1169,7 @@ body {
 
 .dns-instruction-box h4 {
     margin-bottom: var(--spacing-md);
-    color: #92400e;
+    color: var(--warning-color);
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
@@ -1142,20 +1177,21 @@ body {
 
 .dns-instruction-box p {
     margin-bottom: var(--spacing-md);
-    color: #78350f;
+    color: var(--text-secondary);
 }
 
 .dns-instruction-table {
     width: 100%;
     border-collapse: collapse;
     margin: var(--spacing-md) 0;
-    background: white;
+    background: var(--bg-color);
     border-radius: var(--border-radius);
     overflow: hidden;
+    border: 1px solid var(--border-color);
 }
 
 .dns-instruction-table tr {
-    border-bottom: 1px solid #fde68a;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .dns-instruction-table tr:last-child {
@@ -1168,40 +1204,43 @@ body {
 
 .dns-instruction-table td.label {
     font-weight: 600;
-    color: #92400e;
+    color: var(--text-primary);
     width: 120px;
     white-space: nowrap;
 }
 
 .dns-instruction-table td.value {
-    color: #78350f;
+    color: var(--text-secondary);
 }
 
 .dns-instruction-table code {
-    background: #fef3c7;
+    background: var(--bg-secondary);
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 0.9375rem;
-    color: #92400e;
+    color: var(--primary-color);
     font-weight: 600;
     word-break: break-all;
+    border: 1px solid var(--border-color);
 }
 
 .dns-instruction-note {
     font-size: 0.875rem;
-    color: #78350f;
-    background: white;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
     padding: var(--spacing-sm) var(--spacing-md);
     border-radius: var(--border-radius);
     margin-top: var(--spacing-md);
     margin-bottom: 0;
+    border: 1px solid var(--border-color);
 }
 
 .dns-instruction-note code {
-    background: #fef3c7;
+    background: var(--bg-color);
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 0.8125rem;
+    border: 1px solid var(--border-color);
 }
 
 /* 验证状态显示 */
@@ -1263,14 +1302,15 @@ body {
 
 /* 验证日志 */
 .verification-log {
-    background: var(--text-primary);
-    color: #e2e8f0;
+    background: var(--bg-color);
+    color: var(--text-primary);
     padding: var(--spacing-md);
     border-radius: var(--border-radius);
     max-height: 300px;
     overflow-y: auto;
     font-family: 'Courier New', Courier, monospace;
     font-size: 0.875rem;
+    border: 1px solid var(--border-color);
 }
 
 .log-entry {
@@ -1281,7 +1321,7 @@ body {
 }
 
 .log-time {
-    color: #94a3b8;
+    color: var(--text-muted);
     flex-shrink: 0;
 }
 
@@ -1364,21 +1404,24 @@ body {
     padding: 0;
     margin-left: var(--spacing-xs);
     background: var(--info-color);
-    color: white;
-    border: none;
-    border-radius: 50%;
+    color: #ffffff;
+    border: 2px solid var(--info-color);
+    border-radius: 0;
     cursor: pointer;
     transition: all 0.2s ease;
     vertical-align: middle;
 }
 
 .help-toggle-btn:hover {
-    background: var(--primary-color);
+    background: #ffffff;
+    color: var(--info-color);
     transform: scale(1.1);
+    box-shadow: 2px 2px 0 var(--info-color);
 }
 
 .help-toggle-btn.active {
-    background: var(--primary-hover);
+    background: #ffffff;
+    color: var(--info-color);
 }
 
 .help-toggle-btn svg {
@@ -1390,8 +1433,8 @@ body {
 .nginx-examples-container {
     margin-top: var(--spacing-lg);
     padding: var(--spacing-lg);
-    background: #fefce8;
-    border: 2px solid var(--warning-color);
+    background: var(--bg-secondary);
+    border: 1px solid var(--warning-color);
     border-radius: var(--border-radius);
     animation: fadeIn 0.3s ease-out;
 }
@@ -1401,7 +1444,7 @@ body {
 }
 
 .nginx-examples-container .example-header h5 {
-    color: #92400e;
+    color: var(--warning-color);
     font-size: 1.125rem;
     margin: 0;
     display: flex;
@@ -1413,7 +1456,7 @@ body {
 .example-section {
     margin-bottom: var(--spacing-xl);
     padding: var(--spacing-lg);
-    background: white;
+    background: var(--bg-color);
     border-radius: var(--border-radius);
     border: 1px solid var(--border-color);
 }
@@ -1429,12 +1472,12 @@ body {
 }
 
 .example-section.example-important {
-    border: 2px solid var(--warning-color);
-    background: #fffbeb;
+    border: 1px solid var(--warning-color);
+    background: var(--bg-secondary);
 }
 
 .example-section.example-important h6 {
-    color: #92400e;
+    color: var(--warning-color);
 }
 
 .example-note {
@@ -1448,23 +1491,23 @@ body {
 }
 
 .example-note.error {
-    background: #fef2f2;
+    background: var(--bg-secondary);
     border-left-color: var(--danger-color);
-    color: #991b1b;
+    color: var(--danger-color);
 }
 
 /* 错误配置 */
 .example-wrong {
     margin: var(--spacing-md) 0;
     padding: var(--spacing-md);
-    background: #fef2f2;
+    background: var(--bg-secondary);
     border-left: 4px solid var(--danger-color);
     border-radius: 4px;
 }
 
 .example-wrong p {
     margin: 0 0 var(--spacing-sm) 0;
-    color: #991b1b;
+    color: var(--danger-color);
     font-weight: 600;
 }
 
@@ -1476,14 +1519,14 @@ body {
 .example-correct {
     margin: var(--spacing-md) 0;
     padding: var(--spacing-md);
-    background: #f0fdf4;
+    background: var(--bg-secondary);
     border-left: 4px solid var(--success-color);
     border-radius: 4px;
 }
 
 .example-correct p {
     margin: 0 0 var(--spacing-sm) 0;
-    color: #065f46;
+    color: var(--success-color);
     font-weight: 600;
 }
 
@@ -1495,14 +1538,14 @@ body {
 .example-tips {
     margin: var(--spacing-md) 0;
     padding: var(--spacing-md);
-    background: #eff6ff;
+    background: var(--bg-secondary);
     border-left: 4px solid var(--info-color);
     border-radius: 4px;
 }
 
 .example-tips p {
     margin: 0 0 var(--spacing-sm) 0;
-    color: #1e40af;
+    color: var(--info-color);
     font-weight: 600;
 }
 
@@ -1514,7 +1557,7 @@ body {
 
 .example-tips li {
     margin-bottom: var(--spacing-xs);
-    color: #1e3a8a;
+    color: var(--text-secondary);
 }
 
 .example-tips li:last-child {
@@ -1522,25 +1565,26 @@ body {
 }
 
 .example-tips code {
-    background: white;
+    background: var(--bg-color);
     padding: 2px 6px;
     border-radius: 4px;
     color: var(--primary-color);
     font-size: 0.875rem;
+    border: 1px solid var(--border-color);
 }
 
 /* 验证配置区块 */
 .example-verify {
     margin: var(--spacing-md) 0 0 0;
     padding: var(--spacing-md);
-    background: #faf5ff;
-    border-left: 4px solid #7c3aed;
+    background: var(--bg-secondary);
+    border-left: 4px solid var(--primary-color);
     border-radius: 4px;
 }
 
 .example-verify p {
     margin: 0 0 var(--spacing-sm) 0;
-    color: #5b21b6;
+    color: var(--primary-color);
     font-weight: 600;
 }
 
@@ -1567,10 +1611,11 @@ body {
 .ssl-cert-info {
     margin-top: var(--spacing-md);
     padding: var(--spacing-lg);
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--bg-secondary);
     border-radius: var(--border-radius);
-    color: white;
+    color: var(--text-primary);
     animation: fadeIn 0.3s ease-out;
+    border: 1px solid var(--primary-color);
 }
 
 .cert-info-header {
@@ -1579,7 +1624,7 @@ body {
     gap: var(--spacing-sm);
     margin-bottom: var(--spacing-md);
     padding-bottom: var(--spacing-sm);
-    border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .cert-info-header svg {
@@ -1594,11 +1639,12 @@ body {
 
 .cert-info-badge {
     padding: 4px 12px;
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--bg-hover);
     border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
+    border: 1px solid var(--border-color);
 }
 
 .cert-info-content {
@@ -1610,11 +1656,11 @@ body {
 
 .cert-info-note {
     padding: var(--spacing-sm) var(--spacing-md);
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--bg-hover);
     border-radius: var(--border-radius);
     font-size: 0.875rem;
     line-height: 1.5;
-    border-left: 3px solid rgba(255, 255, 255, 0.4);
+    border: 1px solid var(--border-color);
 }
 
 .cert-info-item {
@@ -1635,15 +1681,15 @@ body {
 }
 
 .cert-days.cert-success {
-    color: #86efac;
+    color: var(--success-color);
 }
 
 .cert-days.cert-warning {
-    color: #fcd34d;
+    color: var(--warning-color);
 }
 
 .cert-days.cert-danger {
-    color: #fca5a5;
+    color: var(--danger-color);
     animation: pulse 2s ease-in-out infinite;
 }
 
@@ -1702,7 +1748,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: var(--spacing-md);
-    background: white;
+    background: var(--bg-secondary);
     border: 2px solid var(--border-color);
     border-radius: var(--border-radius);
     transition: all 0.2s ease;
@@ -1710,7 +1756,7 @@ body {
 
 .cert-file-item:hover {
     border-color: var(--primary-color);
-    box-shadow: var(--shadow-md);
+    box-shadow: 2px 2px 0 var(--primary-color);
 }
 
 .cert-file-info {
@@ -1815,10 +1861,10 @@ body {
 }
 
 .copy-btn:hover {
-    background: white;
+    background: var(--bg-hover);
     color: var(--primary-color);
     border-color: var(--primary-color);
-    box-shadow: var(--shadow-sm);
+    box-shadow: 2px 2px 0 var(--primary-color);
 }
 
 .copy-btn:active {
