@@ -24,6 +24,7 @@ const AppState = {
     realCertificate: null,
     // SSL证书信息
     sslCertInfo: null,
+    sslCertDomain: null,
     certDaysRemaining: null
 };
 
@@ -131,6 +132,7 @@ function restartWizard() {
     AppState.realCertificate = null;
     clearActiveAcmeOrder();
     AppState.sslCertInfo = null;
+    AppState.sslCertDomain = null;
     AppState.certDaysRemaining = null;
 
     // 重置表单
@@ -321,7 +323,10 @@ function onStepEnter(step) {
             document.querySelectorAll('input[name="cert-format"]').forEach(radio => {
                 radio.checked = false;
             });
-            document.getElementById('btn-next-step-4').disabled = true;
+            const formatNextButton = document.getElementById('btn-next-step-4');
+            const formatDetail = document.getElementById('format-selection-detail');
+            if (formatNextButton) formatNextButton.disabled = true;
+            if (formatDetail) formatDetail.style.display = 'none';
             break;
         case 5:
             // 进入步骤5时，申请证书并显示安装指南
@@ -332,29 +337,11 @@ function onStepEnter(step) {
 
 // 恢复SSL证书信息显示
 function restoreSSLCertInfo() {
-    const certInfoBox = document.getElementById('ssl-cert-info');
     const domainInput = document.getElementById('domain-input');
 
     // 如果有证书信息且域名输入框不为空，恢复显示
     if (AppState.sslCertInfo && domainInput && domainInput.value.trim()) {
-        const certIssuerEl = document.getElementById('cert-issuer');
-        const certExpiryEl = document.getElementById('cert-expiry');
-        const certDaysEl = document.getElementById('cert-days');
-
-        certIssuerEl.textContent = AppState.sslCertInfo.issuer;
-        certExpiryEl.textContent = AppState.sslCertInfo.expiryDate;
-        certDaysEl.textContent = `${AppState.sslCertInfo.daysRemaining} 天`;
-
-        // 根据剩余天数设置颜色
-        if (AppState.sslCertInfo.daysRemaining < 7) {
-            certDaysEl.className = 'cert-value cert-days cert-danger';
-        } else if (AppState.sslCertInfo.daysRemaining < 30) {
-            certDaysEl.className = 'cert-value cert-days cert-warning';
-        } else {
-            certDaysEl.className = 'cert-value cert-days cert-success';
-        }
-
-        certInfoBox.style.display = 'block';
+        displaySSLCertInfo(AppState.sslCertInfo, 'memory');
     }
 }
 
@@ -464,9 +451,15 @@ function bindCertificateScopeChange() {
                     ? '输入基础域名，系统将申请 *.example.com；仅覆盖下一级子域名'
                     : '输入要保护的完整域名，例如 api.example.com';
             }
-            document.getElementById('ssl-cert-info').style.display = 'none';
             AppState.sslCertInfo = null;
+            AppState.sslCertDomain = null;
             AppState.certDaysRemaining = null;
+            const currentDomain = domainInput.value.trim();
+            if (isValidSSLCertLookupDomain(currentDomain)) {
+                checkSSLCertificate(currentDomain);
+            } else {
+                hideSSLCertInfo();
+            }
             updateWizardSummary();
         });
     });
@@ -843,9 +836,52 @@ function bindCertFormatChange() {
             AppState.certFormat = this.value;
             const nextButton = document.getElementById('btn-next-step-4');
             if (nextButton) nextButton.disabled = false;
+            updateCertFormatPreview(this.value);
             updateWizardSummary();
         });
     });
+}
+
+function updateCertFormatPreview(formatId) {
+    const detail = document.getElementById('format-selection-detail');
+    const dataElement = document.getElementById('cert-formats-data');
+    if (!detail || !dataElement) return;
+
+    let format;
+    try {
+        const formatData = JSON.parse(dataElement.textContent);
+        format = Array.isArray(formatData.formats)
+            ? formatData.formats.find(item => item.id === formatId)
+            : null;
+    } catch (error) {
+        console.error('[证书格式] 无法解析格式数据:', error);
+        detail.style.display = 'none';
+        return;
+    }
+
+    if (!format) {
+        detail.style.display = 'none';
+        return;
+    }
+
+    const name = document.getElementById('format-preview-name');
+    const description = document.getElementById('format-preview-description');
+    const files = document.getElementById('format-preview-files');
+    if (!name || !description || !files) return;
+
+    name.textContent = format.name;
+    description.textContent = format.description;
+    const formatFiles = Array.isArray(format.files) ? format.files : [];
+    files.replaceChildren(...formatFiles.map(file => {
+        const item = document.createElement('li');
+        const code = document.createElement('code');
+        const description = document.createElement('span');
+        code.textContent = file.name;
+        description.textContent = file.description;
+        item.append(code, description);
+        return item;
+    }));
+    detail.style.display = 'flex';
 }
 
 function beginChallengeVerification() {
@@ -866,27 +902,30 @@ async function startCertificateRequest() {
         disableDownloadAllButton();
     }
 
+    const progressContainer = document.getElementById('cert-request-progress');
+    const individualDownloads = document.getElementById('individual-downloads');
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        progressContainer.innerHTML = `
+            <div class="loading-spinner"></div>
+            <strong>正在向 ${escapeHtml(AppState.acmeProvider)} 申请证书...</strong>
+            <p>验证已通过，请保持当前页面打开。</p>
+            <div id="cert-request-log" class="cert-request-log"></div>
+        `;
+    }
+    if (individualDownloads) individualDownloads.open = false;
+
     // 检查是否已经有证书
     if (AppState.realCertificate
         && AppState.realCertificate.domain === AppState.domain
         && AppState.realCertificate.provider === AppState.acmeProvider) {
         console.log('[Main] 已有真实证书，直接生成证书文件列表');
         generateCertificateFilesListNow();
+        if (progressContainer) progressContainer.style.display = 'none';
         updateIssuanceStatus('success', '证书签发成功！', '证书文件已经准备完成，可以下载并按照下方指南安装。');
         return;
     }
     AppState.realCertificate = null;
-
-    // 在证书文件列表区域显示加载状态
-    const filesListContainer = document.getElementById('cert-files-list');
-    filesListContainer.innerHTML = `
-        <div class="loading-certificate" style="padding: 2rem; text-align: center;">
-            <div class="loading-spinner" style="margin: 0 auto 1rem;"></div>
-            <h4>正在申请证书...</h4>
-            <p style="color: #64748b; margin-bottom: 1rem;">请稍候，系统正在向 ${AppState.acmeProvider} 申请真实的 SSL 证书</p>
-            <div id="cert-request-log" class="cert-request-log" style="max-height: 300px; overflow-y: auto; text-align: left; background: #f8fafc; padding: 1rem; border-radius: 8px; margin-top: 1rem;"></div>
-        </div>
-    `;
 
     try {
         // 调用 ACME 申请流程
@@ -894,15 +933,17 @@ async function startCertificateRequest() {
 
         // 申请成功，生成证书文件列表
         generateCertificateFilesListNow();
+        if (progressContainer) progressContainer.style.display = 'none';
         updateIssuanceStatus('success', '证书签发成功！', '证书文件已经准备完成，可以下载并按照下方指南安装。');
 
     } catch (error) {
         console.error('[Main] 证书申请失败:', error);
-        updateIssuanceStatus('error', '证书签发失败', error.message || '请检查验证配置后重试。');
-        filesListContainer.innerHTML = `
+        const errorMessage = error?.message || '请检查验证配置后重试。';
+        updateIssuanceStatus('error', '证书签发失败', errorMessage);
+        if (progressContainer) progressContainer.innerHTML = `
             <div class="error-box" style="margin: 0;">
                 <h4>❌ 证书申请失败</h4>
-                <p class="error-message">${escapeHtml(error.message)}</p>
+                <p class="error-message">${escapeHtml(errorMessage)}</p>
                 <p style="margin-top: 1rem;">请返回步骤3重新验证配置，或检查以下内容：</p>
                 <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
                     <li>HTTP-01: 验证文件是否可以通过 HTTP 访问</li>
@@ -1635,39 +1676,154 @@ function bindDomainInputChange() {
             clearTimeout(debounceTimer);
         }
 
-        // 如果域名为空，隐藏证书信息
+        // 域名为空或尚未输入完整时，不显示上一个域名的结果。
         if (!domain) {
-            const certInfoBox = document.getElementById('ssl-cert-info');
-            if (certInfoBox) {
-                certInfoBox.style.display = 'none';
-            }
+            hideSSLCertInfo();
             AppState.sslCertInfo = null;
+            AppState.sslCertDomain = null;
             AppState.certDaysRemaining = null;
             return;
         }
 
-        // 简单的域名格式验证
-        const domainRegex = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
-        if (!domainRegex.test(domain)) {
+        if (!isValidSSLCertLookupDomain(domain)) {
+            hideSSLCertInfo();
             return;
         }
 
-        // 如果域名和当前检测的域名相同，不重复检测
-        if (AppState.domain === domain && AppState.sslCertInfo) {
+        const lookupDomain = normalizeSSLCertLookupDomain(domain);
+        if (AppState.sslCertDomain === lookupDomain && AppState.sslCertInfo) {
+            displaySSLCertInfo(AppState.sslCertInfo, 'memory');
             return;
         }
+
+        // 缓存命中时立即显示，不进入延迟和网络检查。
+        const cachedCertInfo = getCachedSSLCertInfo(lookupDomain);
+        if (cachedCertInfo) {
+            displaySSLCertInfo(cachedCertInfo, 'cache');
+            return;
+        }
+
+        showSSLCertChecking(lookupDomain, false, '准备检查...');
 
         // 防抖：500ms后执行检测
         debounceTimer = setTimeout(() => {
-            checkSSLCertificate(domain);
+            checkSSLCertificate(lookupDomain);
         }, 500);
     });
 }
 
 // ==================== SSL证书检测 ====================
 const SSL_CERT_CACHE_PREFIX = 'ssl_cert_info_v1:';
-const SSL_CERT_FAILURE_CACHE_PREFIX = 'ssl_cert_failure_v1:';
+const SSL_CERT_FAILURE_CACHE_PREFIX = 'ssl_cert_failure_v2:';
 const sslCertChecksInFlight = new Map();
+const SSL_CERT_DOMAIN_PATTERN = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+
+function normalizeSSLCertLookupDomain(domain) {
+    return String(domain || '').trim().replace(/^\*\./, '').toLowerCase();
+}
+
+function isValidSSLCertLookupDomain(domain) {
+    return SSL_CERT_DOMAIN_PATTERN.test(String(domain || '').trim());
+}
+
+function getSSLCertPanelElements() {
+    return {
+        box: document.getElementById('ssl-cert-info'),
+        issuer: document.getElementById('cert-issuer'),
+        expiry: document.getElementById('cert-expiry'),
+        days: document.getElementById('cert-days'),
+        badge: document.getElementById('cert-info-badge'),
+        message: document.getElementById('cert-info-message'),
+        note: document.getElementById('cert-info-note'),
+        refreshButton: document.getElementById('cert-refresh-btn'),
+        refreshLabel: document.getElementById('cert-refresh-label')
+    };
+}
+
+function hideSSLCertInfo() {
+    const { box } = getSSLCertPanelElements();
+    if (box) box.style.display = 'none';
+}
+
+function isWildcardCertificateScope() {
+    return document.querySelector('input[name="certificate-scope"]:checked')?.value === 'wildcard';
+}
+
+function getWildcardCertificateNote(domain) {
+    return isWildcardCertificateScope()
+        ? `当前是泛域名模式：这里只检查基础域名 ${domain} 当前可见的证书，不能据此判断 *.${domain} 是否已经部署。`
+        : '';
+}
+
+function setSSLCertRefreshLoading(isLoading) {
+    const { refreshButton, refreshLabel } = getSSLCertPanelElements();
+    if (refreshButton) refreshButton.disabled = isLoading;
+    if (refreshLabel) refreshLabel.textContent = isLoading ? '检查中...' : '重新检查';
+}
+
+function showSSLCertChecking(domain, preserveValues = false, message = '正在读取现有证书信息...') {
+    const elements = getSSLCertPanelElements();
+    if (!elements.box) return;
+
+    elements.box.style.display = 'block';
+    elements.box.dataset.state = 'loading';
+    elements.box.dataset.domain = domain;
+    elements.badge.textContent = '检查中';
+    elements.badge.className = 'cert-info-badge cert-info-badge-loading';
+    if (!preserveValues) {
+        elements.issuer.textContent = '检查中...';
+        elements.expiry.textContent = '检查中...';
+        elements.days.textContent = '检查中...';
+        elements.days.className = 'cert-value cert-days';
+        AppState.sslCertInfo = null;
+        AppState.sslCertDomain = domain;
+        AppState.certDaysRemaining = null;
+    }
+    elements.message.textContent = message;
+    elements.message.className = 'cert-info-message cert-info-message-loading';
+    elements.message.style.display = 'block';
+    elements.note.textContent = getWildcardCertificateNote(domain)
+        || '没有可用缓存，正在执行一次网络检查。成功后会缓存到证书自身的到期时间。';
+    setSSLCertRefreshLoading(true);
+}
+
+function displaySSLCertCheckUnavailable(domain, options = {}) {
+    const { cachedFallback = null, recentFailure = false, message = '' } = options;
+    const elements = getSSLCertPanelElements();
+    if (!elements.box) return;
+
+    if (cachedFallback) {
+        displaySSLCertInfo(cachedFallback, 'cache');
+        elements.box.dataset.state = 'unavailable';
+        elements.badge.textContent = '缓存 · 刷新失败';
+        elements.badge.className = 'cert-info-badge cert-info-badge-warning';
+        elements.message.textContent = message || '重新检查失败，已保留上一次缓存结果。';
+        elements.message.className = 'cert-info-message cert-info-message-warning';
+        elements.message.style.display = 'block';
+        return;
+    }
+
+    AppState.sslCertInfo = null;
+    AppState.sslCertDomain = domain;
+    AppState.certDaysRemaining = null;
+    elements.box.style.display = 'block';
+    elements.box.dataset.state = 'unavailable';
+    elements.box.dataset.domain = domain;
+    elements.badge.textContent = recentFailure ? '近期检查失败' : '暂未获取';
+    elements.badge.className = 'cert-info-badge cert-info-badge-warning';
+    elements.issuer.textContent = '暂未获取到';
+    elements.expiry.textContent = '-';
+    elements.days.textContent = '-';
+    elements.days.className = 'cert-value cert-days';
+    elements.message.textContent = message || (recentFailure
+        ? '刚才的自动检查没有取得结果，为避免重复慢请求，5 分钟内不会自动重试。'
+        : '没有取得可用的证书信息，可能是查询服务暂时不可用，也可能是该域名没有可识别的有效证书。');
+    elements.message.className = 'cert-info-message cert-info-message-warning';
+    elements.message.style.display = 'block';
+    const wildcardNote = getWildcardCertificateNote(domain);
+    elements.note.textContent = `${wildcardNote}${wildcardNote ? ' ' : ''}可点击“重新检查”立即忽略失败记录再试。`;
+    setSSLCertRefreshLoading(false);
+}
 
 function getCachedSSLCertInfo(domain) {
     const cacheKey = SSL_CERT_CACHE_PREFIX + domain.toLowerCase();
@@ -1688,7 +1844,9 @@ function getCachedSSLCertInfo(domain) {
             issuer: cached.issuer,
             expiryDate: cached.expiryDate,
             expiryTimestamp: cached.expiresAt,
-            daysRemaining: Math.ceil((cached.expiresAt - Date.now()) / (1000 * 60 * 60 * 24))
+            daysRemaining: Math.ceil((cached.expiresAt - Date.now()) / (1000 * 60 * 60 * 24)),
+            fetchedAt: Number.isFinite(cached.fetchedAt) ? cached.fetchedAt : null,
+            source: cached.source || '证书查询服务'
         };
     } catch (error) {
         localStorage.removeItem(cacheKey);
@@ -1745,7 +1903,8 @@ function cacheSSLCertInfo(domain, certInfo) {
             issuer: certInfo.issuer,
             expiryDate: certInfo.expiryDate,
             fetchedAt: Date.now(),
-            expiresAt: certInfo.expiryTimestamp
+            expiresAt: certInfo.expiryTimestamp,
+            source: certInfo.source || '证书查询服务'
         }));
     } catch (error) {
         console.warn('SSL 证书信息缓存失败:', error.message);
@@ -1786,110 +1945,129 @@ function cacheSSLCertCheckFailure(domain) {
 
 function refreshSSLCertificate() {
     const domainInput = document.getElementById('domain-input');
-    const domain = domainInput ? domainInput.value.trim() : '';
-    const scope = document.querySelector('input[name="certificate-scope"]:checked')?.value || 'single';
-    if (!domain || domain.startsWith('*.') || scope === 'wildcard') return;
+    const domain = normalizeSSLCertLookupDomain(domainInput ? domainInput.value : '');
+    if (!isValidSSLCertLookupDomain(domain)) return;
 
-    clearSSLCertCache(domain);
-    AppState.sslCertInfo = null;
-    AppState.certDaysRemaining = null;
+    // 手动检查只绕过缓存，不先删除旧结果；失败时仍保留原有效期。
+    try {
+        localStorage.removeItem(SSL_CERT_FAILURE_CACHE_PREFIX + domain);
+    } catch (error) {
+        console.warn('SSL 证书失败记录清理失败:', error.message);
+    }
     checkSSLCertificate(domain, true);
 }
 
-function displaySSLCertInfo(certInfo) {
-    const certInfoBox = document.getElementById('ssl-cert-info');
-    const certIssuerEl = document.getElementById('cert-issuer');
-    const certExpiryEl = document.getElementById('cert-expiry');
-    const certDaysEl = document.getElementById('cert-days');
+function displaySSLCertInfo(certInfo, origin = 'live') {
+    const elements = getSSLCertPanelElements();
+    if (!elements.box) return;
+    const domain = normalizeSSLCertLookupDomain(
+        document.getElementById('domain-input')?.value || AppState.sslCertDomain
+    );
 
     AppState.sslCertInfo = certInfo;
+    AppState.sslCertDomain = domain;
     AppState.certDaysRemaining = certInfo.daysRemaining;
-    certIssuerEl.textContent = certInfo.issuer;
-    certExpiryEl.textContent = certInfo.expiryDate;
-    certDaysEl.textContent = `${certInfo.daysRemaining} 天`;
+    elements.issuer.textContent = certInfo.issuer;
+    elements.expiry.textContent = certInfo.expiryDate;
+    elements.days.textContent = `${certInfo.daysRemaining} 天`;
 
     if (certInfo.daysRemaining < 7) {
-        certDaysEl.className = 'cert-value cert-days cert-danger';
+        elements.days.className = 'cert-value cert-days cert-danger';
     } else if (certInfo.daysRemaining < 30) {
-        certDaysEl.className = 'cert-value cert-days cert-warning';
+        elements.days.className = 'cert-value cert-days cert-warning';
     } else {
-        certDaysEl.className = 'cert-value cert-days cert-success';
+        elements.days.className = 'cert-value cert-days cert-success';
     }
-    certInfoBox.style.display = 'block';
+
+    const badgeLabels = {
+        cache: '浏览器缓存',
+        manual: '已重新检查',
+        memory: '本页结果',
+        live: '刚刚检查'
+    };
+    const certificateExpired = Number.isFinite(certInfo.expiryTimestamp)
+        && certInfo.expiryTimestamp <= Date.now();
+    elements.badge.textContent = certificateExpired
+        ? '证书已过期'
+        : (badgeLabels[origin] || badgeLabels.live);
+    elements.badge.className = certificateExpired
+        ? 'cert-info-badge cert-info-badge-warning'
+        : 'cert-info-badge cert-info-badge-success';
+    elements.message.style.display = 'none';
+    const wildcardNote = getWildcardCertificateNote(domain);
+    const sourceText = certInfo.source ? `数据来源：${certInfo.source}。` : '';
+    elements.note.textContent = certificateExpired
+        ? `${wildcardNote}${wildcardNote ? ' ' : ''}${sourceText}该证书已于 ${certInfo.expiryDate} 过期，本次结果不会写入有效缓存。`
+        : `${wildcardNote}${wildcardNote ? ' ' : ''}${sourceText}缓存有效至 ${certInfo.expiryDate}，与证书到期时间一致；需要最新结果时可手动重新检查。`;
+    elements.box.style.display = 'block';
+    elements.box.dataset.state = 'success';
+    elements.box.dataset.domain = domain;
+    setSSLCertRefreshLoading(false);
 }
 
 async function checkSSLCertificate(domain, forceRefresh = false) {
-    // 通配符域名不检测
-    const scope = document.querySelector('input[name="certificate-scope"]:checked')?.value || 'single';
-    if (domain.startsWith('*.') || scope === 'wildcard') {
-        return;
-    }
-
-    const certInfoBox = document.getElementById('ssl-cert-info');
-    const certIssuerEl = document.getElementById('cert-issuer');
-    const certExpiryEl = document.getElementById('cert-expiry');
-    const certDaysEl = document.getElementById('cert-days');
+    const lookupDomain = normalizeSSLCertLookupDomain(domain);
+    if (!isValidSSLCertLookupDomain(lookupDomain)) return;
+    const cachedCertInfo = getCachedSSLCertInfo(lookupDomain);
 
     try {
-        const cachedCertInfo = forceRefresh ? null : getCachedSSLCertInfo(domain);
-        if (cachedCertInfo) {
-            console.log('使用浏览器缓存的 SSL 证书信息:', domain);
-            displaySSLCertInfo(cachedCertInfo);
+        if (!forceRefresh && cachedCertInfo) {
+            console.log('使用浏览器缓存的 SSL 证书信息:', lookupDomain);
+            displaySSLCertInfo(cachedCertInfo, 'cache');
             return;
         }
-        if (!forceRefresh && hasRecentSSLCertCheckFailure(domain)) {
-            certInfoBox.style.display = 'none';
+        if (!forceRefresh && hasRecentSSLCertCheckFailure(lookupDomain)) {
+            displaySSLCertCheckUnavailable(lookupDomain, { recentFailure: true });
             return;
         }
 
-        // 显示加载状态
-        certInfoBox.style.display = 'block';
-        certIssuerEl.textContent = '检测中...';
-        certExpiryEl.textContent = '检测中...';
-        certDaysEl.textContent = '检测中...';
-        certDaysEl.className = 'cert-value cert-days';
-
-        console.log('正在检测域名:', domain);
+        showSSLCertChecking(
+            lookupDomain,
+            Boolean(forceRefresh && cachedCertInfo),
+            forceRefresh ? '正在忽略缓存并重新检查...' : '正在读取现有证书信息...'
+        );
+        console.log('正在检测域名:', lookupDomain);
 
         // 同一域名在请求期间共享一个 Promise，避免重复并发。
-        const normalizedDomain = domain.toLowerCase();
-        let certInfoPromise = sslCertChecksInFlight.get(normalizedDomain);
+        let certInfoPromise = sslCertChecksInFlight.get(lookupDomain);
         if (!certInfoPromise) {
-            certInfoPromise = checkSSLWithRace(domain).finally(() => {
-                sslCertChecksInFlight.delete(normalizedDomain);
+            certInfoPromise = checkSSLWithRace(lookupDomain).finally(() => {
+                sslCertChecksInFlight.delete(lookupDomain);
             });
-            sslCertChecksInFlight.set(normalizedDomain, certInfoPromise);
+            sslCertChecksInFlight.set(lookupDomain, certInfoPromise);
         }
         const certInfo = await certInfoPromise;
+        const currentDomain = normalizeSSLCertLookupDomain(document.getElementById('domain-input')?.value);
+        if (currentDomain !== lookupDomain) return;
 
         if (certInfo) {
-            cacheSSLCertInfo(domain, certInfo);
-            localStorage.removeItem(SSL_CERT_FAILURE_CACHE_PREFIX + domain.toLowerCase());
-
-            // 请求返回时域名可能已经被用户改掉，避免显示上一个域名的结果。
-            const currentDomain = document.getElementById('domain-input').value.trim().toLowerCase();
-            if (currentDomain === domain.toLowerCase()) {
-                displaySSLCertInfo(certInfo);
-            }
+            cacheSSLCertInfo(lookupDomain, certInfo);
+            localStorage.removeItem(SSL_CERT_FAILURE_CACHE_PREFIX + lookupDomain);
+            displaySSLCertInfo(certInfo, forceRefresh ? 'manual' : 'live');
         } else {
-            // 未检测到证书
-            cacheSSLCertCheckFailure(domain);
-            certInfoBox.style.display = 'none';
-            AppState.sslCertInfo = null;
-            AppState.certDaysRemaining = null;
+            cacheSSLCertCheckFailure(lookupDomain);
+            displaySSLCertCheckUnavailable(lookupDomain, {
+                cachedFallback: forceRefresh ? cachedCertInfo : null,
+                message: forceRefresh && cachedCertInfo
+                    ? '重新检查没有取得新结果，已继续显示原缓存。'
+                    : ''
+            });
         }
     } catch (error) {
         console.log('SSL证书检测失败:', error.message);
-        cacheSSLCertCheckFailure(domain);
-        certInfoBox.style.display = 'none';
-        AppState.sslCertInfo = null;
-        AppState.certDaysRemaining = null;
+        cacheSSLCertCheckFailure(lookupDomain);
+        displaySSLCertCheckUnavailable(lookupDomain, {
+            cachedFallback: forceRefresh ? cachedCertInfo : null,
+            message: forceRefresh && cachedCertInfo
+                ? '重新检查失败，已继续显示原缓存。'
+                : '证书检查失败，请稍后重试或点击“重新检查”。'
+        });
     }
 }
 
-// 竞速策略：同时请求多个API，使用最快的响应
+// 静态网页只能调用明确允许 CORS 的 HTTPS API。
 async function checkSSLWithRace(domain) {
-    const timeout = 8000; // 8秒超时
+    const timeout = 10000;
     const controller = new AbortController();
 
     let timeoutId;
@@ -1900,17 +2078,13 @@ async function checkSSLWithRace(domain) {
         }, timeout);
     });
 
-    // Promise.any 只接受第一个成功结果，某个检测源先失败不会拖住其他结果。
-    const promises = [
-        checkSSLViaMySSL(domain, controller.signal),
-        checkSSLViaChinazSSL(domain, controller.signal),
-        checkSSLViaTransparencyLog(domain, controller.signal)
-    ];
-
     try {
-        return await Promise.race([Promise.any(promises), timeoutPromise]);
+        return await Promise.race([
+            checkSSLViaCertSpotter(domain, controller.signal),
+            timeoutPromise
+        ]);
     } catch (error) {
-        console.log('所有API都失败了:', error.message);
+        console.log('Cert Spotter 查询失败:', error.message);
         return null;
     } finally {
         clearTimeout(timeoutId);
@@ -1918,163 +2092,57 @@ async function checkSSLWithRace(domain) {
     }
 }
 
-// 方案1：使用 MySSL API（国内，速度快）
-async function checkSSLViaMySSL(domain, signal) {
-    try {
-        // MySSL 提供免费的SSL检测API（国内访问快）
-        const response = await fetch(`https://myssl.com/api/v1/tools/cert_decode?domain=${encodeURIComponent(domain)}`, {
-            method: 'GET',
-            signal,
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
+// Cert Spotter 提供公开证书透明度数据，并允许浏览器跨域读取。
+async function checkSSLViaCertSpotter(domain, signal) {
+    const params = new URLSearchParams({
+        domain,
+        include_subdomains: 'false',
+        expand: 'issuer'
+    });
+    const response = await fetch(`https://api.certspotter.com/v1/issuances?${params}`, {
+        method: 'GET',
+        signal,
+        headers: { 'Accept': 'application/json' }
+    });
 
-        if (!response.ok) {
-            throw new Error('MySSL API 请求失败');
-        }
-
-        const data = await response.json();
-
-        if (data.code === 0 && data.data) {
-            const cert = data.data;
-            const expiryDate = new Date(cert.not_after * 1000);
-            const today = new Date();
-            const daysRemaining = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
-
-            return {
-                issuer: cert.issuer_cn || cert.issuer_o || 'Unknown CA',
-                expiryTimestamp: expiryDate.getTime(),
-                expiryDate: expiryDate.toLocaleDateString('zh-CN', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit'
-                }),
-                daysRemaining: daysRemaining
-            };
-        }
-
-        throw new Error('MySSL API 返回数据格式错误');
-    } catch (error) {
-        console.log('MySSL 查询失败:', error.message);
-        throw error;
+    if (!response.ok) {
+        throw new Error(`Cert Spotter API 返回 HTTP ${response.status}`);
     }
-}
 
-// 方案2：使用站长工具SSL检测（国内，速度较快）
-async function checkSSLViaChinazSSL(domain, signal) {
-    try {
-        // 使用站长工具的SSL查询接口
-        const response = await fetch(`https://sslapi.chinaz.com/ChinazAPI/SSLInfo?domain=${encodeURIComponent(domain)}`, {
-            method: 'GET',
-            signal,
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error('站长工具 API 请求失败');
-        }
-
-        const data = await response.json();
-
-        if (data.StateCode === 1 && data.Result) {
-            const cert = data.Result;
-            const expiryDate = new Date(cert.EndTime);
-            const today = new Date();
-            const daysRemaining = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
-
-            return {
-                issuer: cert.IssuerName || 'Unknown CA',
-                expiryTimestamp: expiryDate.getTime(),
-                expiryDate: expiryDate.toLocaleDateString('zh-CN', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit'
-                }),
-                daysRemaining: daysRemaining
-            };
-        }
-
-        throw new Error('站长工具 API 返回数据格式错误');
-    } catch (error) {
-        console.log('站长工具查询失败:', error.message);
-        throw error;
+    const certificates = await response.json();
+    if (!Array.isArray(certificates) || certificates.length === 0) {
+        throw new Error('没有查到已签发证书');
     }
-}
 
-// 方案3：通过证书透明度日志检测SSL证书（原方案，保留作为后备）
-async function checkSSLViaTransparencyLog(domain, signal) {
-    try {
-        // 使用 crt.sh API 查询证书透明度日志
-        const response = await fetch(`https://crt.sh/?q=${encodeURIComponent(domain)}&output=json&exclude=expired`, {
-            method: 'GET',
-            signal,
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
+    const now = Date.now();
+    const validCertificates = certificates
+        .filter(cert => {
+            const notBefore = new Date(cert.not_before).getTime();
+            const notAfter = new Date(cert.not_after).getTime();
+            return cert.revoked !== true
+                && Number.isFinite(notBefore)
+                && Number.isFinite(notAfter)
+                && notBefore <= now
+                && notAfter > now;
+        })
+        .sort((a, b) => new Date(b.not_after) - new Date(a.not_after));
 
-        if (!response.ok) {
-            throw new Error('证书查询失败');
-        }
-
-        const certificates = await response.json();
-
-        if (!certificates || certificates.length === 0) {
-            throw new Error('未找到证书');
-        }
-
-        // 找到最新的有效证书
-        const validCerts = certificates
-            .filter(cert => {
-                const notAfter = new Date(cert.not_after);
-                return notAfter > new Date();
-            })
-            .sort((a, b) => new Date(b.not_after) - new Date(a.not_after));
-
-        if (validCerts.length === 0) {
-            throw new Error('没有有效证书');
-        }
-
-        const latestCert = validCerts[0];
-        const expiryDate = new Date(latestCert.not_after);
-        const today = new Date();
-        const daysRemaining = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
-
-        // 提取颁发者名称
-        let issuer = latestCert.issuer_name || 'Unknown';
-        if (issuer.includes('Let\'s Encrypt')) {
-            issuer = "Let's Encrypt";
-        } else if (issuer.includes('ZeroSSL')) {
-            issuer = 'ZeroSSL';
-        } else if (issuer.includes('DigiCert')) {
-            issuer = 'DigiCert';
-        } else if (issuer.includes('Cloudflare')) {
-            issuer = 'Cloudflare';
-        } else {
-            // 提取 CN 或 O 字段
-            const cnMatch = issuer.match(/CN=([^,]+)/);
-            const oMatch = issuer.match(/O=([^,]+)/);
-            issuer = cnMatch ? cnMatch[1] : (oMatch ? oMatch[1] : 'Unknown CA');
-        }
-
-        return {
-            issuer: issuer,
-            expiryTimestamp: expiryDate.getTime(),
-            expiryDate: expiryDate.toLocaleDateString('zh-CN', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit'
-            }),
-            daysRemaining: daysRemaining
-        };
-    } catch (error) {
-        console.log('crt.sh 查询失败:', error.message);
-        throw error;
+    if (validCertificates.length === 0) {
+        throw new Error('没有查到仍在有效期内的证书');
     }
-}
 
-// 移除SSL Labs方案（太慢）
+    const certificate = validCertificates[0];
+    const expiryDate = new Date(certificate.not_after);
+    return {
+        issuer: certificate.issuer?.friendly_name || certificate.issuer?.name || 'Unknown CA',
+        expiryTimestamp: expiryDate.getTime(),
+        expiryDate: expiryDate.toLocaleDateString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }),
+        daysRemaining: Math.ceil((expiryDate.getTime() - now) / (1000 * 60 * 60 * 24)),
+        source: 'Cert Spotter 证书透明度日志'
+    };
+}
 

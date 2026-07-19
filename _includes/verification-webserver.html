@@ -13,16 +13,24 @@
 
     <div class="method-description">
         <p>通过在您的 Web 服务器上放置验证文件来证明域名所有权。适用于有公网可访问 Web 服务器的场景。</p>
-        <p style="color: red">配置完成后一定要使其生效比如【nginx -s reload】重新加载nginx</p>
 
-        <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px; margin-top: 12px;">
-            <p style="margin: 0; color: #ef4444; font-weight: bold;">⚠️ ACME 协议重要特性：</p>
-            <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #991b1b;">
-                <li><strong>每次申请/续期证书时，验证文件名和内容都会改变！</strong></li>
-                <li>原因：Let's Encrypt 每次生成不同的随机 token</li>
-                <li>这是 ACME 协议的安全设计，无法绕过</li>
-                <li>验证数据无法提前准备或长期保留使用</li>
-            </ul>
+        <div class="nginx-lifecycle">
+            <div class="nginx-lifecycle-item is-required">
+                <span class="lifecycle-badge">首次配置必做</span>
+                <strong>新增或修改 Nginx location 后，必须先检查并优雅重载</strong>
+                <code>sudo nginx -t &amp;&amp; sudo nginx -s reload</code>
+                <p>不执行这一步，运行中的 Nginx 仍使用旧配置，CA 将看不到新的验证路径。</p>
+            </div>
+            <div class="nginx-lifecycle-item is-reusable">
+                <span class="lifecycle-badge">以后无需 reload</span>
+                <strong>验证目录配置可以永久复用</strong>
+                <p>后续申请只需要写入新的 token 文件；单纯创建或更新验证文件不会改变 Nginx 配置。</p>
+            </div>
+        </div>
+
+        <div class="challenge-reuse-note">
+            <strong>哪些内容可以复用？</strong>
+            <p>Nginx location 和验证目录可以长期复用；当前标签页中的有效 ACME 订单也会继续复用。新订单的文件名和内容由 CA 随机生成，无法跨订单复用。</p>
         </div>
     </div>
 
@@ -70,7 +78,7 @@ chown -R nginx:nginx /var/www/html/.well-known/
     listen 80;
     server_name <span class="domain-placeholder">example.com</span>;
 
-    location /.well-known/acme-challenge/ {
+    location ^~ /.well-known/acme-challenge/ {
         root /var/www/html;
         try_files $uri =404;
     }
@@ -276,28 +284,31 @@ server {
                 <p>将 <code>.well-known</code> 目录放在 webapp 根目录下，确保可以通过 HTTP 访问。</p>
             </li>
             <li>
-                <strong>重启 Web 服务器：</strong>
-                <pre><code># Nginx
-sudo systemctl reload nginx
+                <strong>让新配置生效（仅首次配置或修改配置时）：</strong>
+                <div class="mandatory-command">
+                    <span>配置改动后必须执行</span>
+                    <code>sudo nginx -t &amp;&amp; sudo nginx -s reload</code>
+                </div>
+                <pre><code># Nginx：检查通过后优雅重载
+sudo nginx -t &amp;&amp; sudo nginx -s reload
 
 # Apache
+sudo apachectl configtest &amp;&amp; \
 sudo systemctl reload apache2
 
 # Tomcat
 # 重启 Tomcat 服务</code></pre>
+                <p class="reload-safety-note">如果只是更新上面的验证 token 文件，请跳过本步骤，不需要重复 reload。</p>
             </li>
             <li>
                 <strong>验证配置是否正确（重要步骤）：</strong>
-                <pre><code># 1. 检查 Nginx 配置语法
-nginx -t
+                <pre><code># 1. 仅当本次修改过 Nginx 配置时执行
+nginx -t &amp;&amp; nginx -s reload
 
-# 2. 如果语法正确，重新加载配置
-nginx -s reload
-
-# 3. 确认验证文件存在且可读
+# 2. 确认验证文件存在且可读
 ls -la /var/www/html/.well-known/acme-challenge/<span class="domain-placeholder">验证文件名</span>
 
-# 4. 测试 HTTP 访问（应该返回文件内容，不应该是 301/302 重定向）
+# 3. 测试 HTTP 访问（应该返回文件内容，不应该是 301/302 重定向）
 curl -v http://<span class="domain-placeholder">example.com</span>/.well-known/acme-challenge/<span class="domain-placeholder">验证文件名</span>
 
 # 预期结果：
@@ -308,7 +319,7 @@ curl -v http://<span class="domain-placeholder">example.com</span>/.well-known/a
 # ⚠️ 如果返回 404，检查 root 路径是否正确
 # ⚠️ 如果返回 403，检查文件权限
 
-# 5. 如果遇到问题，查看 Nginx 错误日志
+# 4. 如果遇到问题，查看 Nginx 错误日志
 tail -f /var/log/nginx/error.log</code></pre>
             </li>
         </ol>
@@ -322,6 +333,7 @@ tail -f /var/log/nginx/error.log</code></pre>
             <li>验证文件需要通过 HTTP（非 HTTPS）访问</li>
             <li>验证文件无需扩展名</li>
             <li><strong>每次申请/续期：</strong>验证文件名和内容每次都不同，需要重新创建验证文件</li>
+            <li><strong>Nginx reload：</strong>只有新增或修改配置、以及安装新的正式证书后才需要；仅更新验证文件不需要 reload</li>
             <li><strong>多域名场景：</strong>多个域名可以共用同一个 <code>/.well-known/acme-challenge/</code> 目录，因为每个域名的验证文件名都是唯一的随机字符串，不会冲突</li>
             <li><strong>目录权限：</strong>确保 nginx/apache 用户对 <code>/.well-known/acme-challenge/</code> 目录有读取权限 <code> chmod -R 755 /.well-known/acme-challenge/</code></li>
             <li><strong>自动化建议：</strong>推荐使用 Certbot 或 acme.sh 等工具实现自动续期，避免手动操作</li>

@@ -72,6 +72,89 @@ function resetVerificationStatus() {
     document.getElementById('verify-continue-button').style.display = 'none';
 }
 
+function classifyAcmeValidationError(error, method) {
+    const message = String(error?.message || error || '验证过程中发生错误');
+    const normalized = message.toLowerCase();
+
+    if (normalized.includes('caa') && (normalized.includes('servfail') || normalized.includes('dns problem') || normalized.includes('timed out') || normalized.includes('timeout') || normalized.includes('refused'))) {
+        return {
+            title: 'CAA DNS 查询失败',
+            summary: '验证文件可能已经正确，但 CA 无法稳定查询域名的权威 DNS。',
+            logs: [
+                ['warning', '这是 DNS/CAA 故障，不是验证文件内容错误；不要因此反复 reload Nginx。'],
+                ['info', '请稍后返回上一步创建新订单重试；如果持续出现，请检查权威 NS 可用性或联系 DNS 服务商。'],
+                ['info', '可使用公共递归 DNS 查询域名的 CAA、NS 和 SOA，确认不同地区结果一致。']
+            ]
+        };
+    }
+
+    if (method === 'webserver' && (normalized.includes('404') || normalized.includes('unauthorized') || normalized.includes('incorrect validation') || normalized.includes('invalid response'))) {
+        return {
+            title: 'CA 读取到的验证文件不正确',
+            summary: '请检查公网 HTTP 返回状态、文件路径和文件内容。',
+            logs: [
+                ['warning', '如果刚新增或修改过 Nginx location，必须先执行 nginx -t && nginx -s reload。'],
+                ['info', '如果只是更新 token 文件，不需要 reload；确认 root 路径与实际写入目录一致。'],
+                ['info', '验证 URL 必须返回 HTTP 200 和完全一致的纯文本内容，不能返回 301/302、404 或 HTML 页面。']
+            ]
+        };
+    }
+
+    if (method === 'webserver' && (normalized.includes('connection') || normalized.includes('timeout') || normalized.includes('refused'))) {
+        return {
+            title: 'CA 无法连接 Web 服务器',
+            summary: '请检查公网 DNS、80 端口、防火墙和 Nginx 监听状态。',
+            logs: [
+                ['warning', '本机代理返回的 Fake-IP 不能代表公网解析结果，请使用公共 DNS 或外部网络确认。'],
+                ['info', '确认域名公网 A/AAAA 记录正确，并允许 CA 从不同地区访问 TCP 80。']
+            ]
+        };
+    }
+
+    if (method === 'webserver' && (normalized.includes('dns problem') || normalized.includes('nxdomain') || normalized.includes('servfail') || normalized.includes('looking up a'))) {
+        return {
+            title: '公网 DNS 解析失败',
+            summary: 'CA 无法从公共 DNS 稳定解析域名，这与本机 curl 能否打开并不是同一项检查。',
+            logs: [
+                ['warning', '请检查公网 A/AAAA、权威 NS 和 SOA；本机代理或 hosts 的结果不能代表 CA 所见结果。'],
+                ['info', '不要反复 reload Nginx；先让公共递归 DNS 能稳定解析，再返回上一步创建新订单。']
+            ]
+        };
+    }
+
+    if (normalized.includes('secondary validation')) {
+        return {
+            title: 'CA 多地区二次验证失败',
+            summary: '主验证节点可能成功，但其他地区的 CA 节点无法得到一致结果。',
+            logs: [
+                ['warning', '请检查权威 DNS、地域防火墙以及 80 端口是否允许全球访问。'],
+                ['info', '当前挑战已经进入终态，需要返回上一步获取新的验证数据后再试。']
+            ]
+        };
+    }
+
+    if (method === 'dns' && (normalized.includes('txt') || normalized.includes('nxdomain') || normalized.includes('servfail'))) {
+        return {
+            title: 'DNS TXT 验证失败',
+            summary: 'CA 没有查询到匹配的 TXT 记录，或权威 DNS 返回了异常状态。',
+            logs: [
+                ['warning', '确认记录名为 _acme-challenge 加基础域名，通配符记录名中不能包含 *.。'],
+                ['info', '等待 DNS 生效后必须返回上一步创建新订单，因为失败挑战不能使用原 token 重试。']
+            ]
+        };
+    }
+
+    return {
+        title: 'CA 验证失败',
+        summary: message,
+        logs: [['info', '请根据 CA 返回的原始错误检查验证配置；失败挑战需要返回上一步获取新 token。']]
+    };
+}
+
+function addValidationGuidanceLogs(diagnosis) {
+    diagnosis.logs.forEach(([type, message]) => addLog(type, message));
+}
+
 // 开始验证配置（不申请证书）
 async function startVerification() {
     const startButton = document.getElementById('verify-start-button');
@@ -97,8 +180,10 @@ async function startVerification() {
             await verifyDNS();
         }
     } catch (error) {
-        addLog('error', '验证过程出错：' + error.message);
-        showVerificationStatus('error', '验证失败', error.message || '验证过程中发生错误');
+        const diagnosis = classifyAcmeValidationError(error, AppState.verificationMethod);
+        addLog('error', '验证未通过：' + (error.message || '未知错误'));
+        addValidationGuidanceLogs(diagnosis);
+        showVerificationStatus('error', diagnosis.title, diagnosis.summary);
     }
 
     startButton.disabled = false;
@@ -150,8 +235,6 @@ async function verifyWebServer() {
             }
             addLog('warning', '当前挑战已进入不可重试状态，请返回上一步获取新的验证文件。');
         }
-        addLog('warning', '请确认 DNS、80 端口、Nginx root 和验证文件内容正确。');
-        showVerificationStatus('error', '验证失败', error.message);
         throw error;
     }
 }
@@ -194,7 +277,6 @@ async function verifyDNS() {
             }
             addLog('warning', '当前挑战已失效，请返回上一步获取新的 TXT 记录值。');
         }
-        showVerificationStatus('error', '验证失败', error.message);
         throw error;
     }
 }

@@ -67,14 +67,23 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
                 <p class="error-message" id="domain-error" style="display: none;"></p>
 
                 <!-- SSL证书有效期检测结果 -->
-                <div class="ssl-cert-info" id="ssl-cert-info" style="display: none;">
+                <div class="ssl-cert-info" id="ssl-cert-info" style="display: none;" aria-live="polite">
                     <div class="cert-info-header">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" stroke="currentColor" stroke-width="2" fill="none"/>
-                            <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        <span class="cert-info-title">SSL证书信息</span>
-                        <button type="button" class="cert-refresh-btn" onclick="refreshSSLCertificate()" title="忽略缓存并重新检测">刷新</button>
+                        <div class="cert-info-heading">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" stroke="currentColor" stroke-width="2" fill="none"/>
+                                <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span class="cert-info-title">已签发 SSL 证书</span>
+                            <span class="cert-info-badge" id="cert-info-badge">等待检查</span>
+                        </div>
+                        <button type="button" class="cert-refresh-btn" id="cert-refresh-btn" onclick="refreshSSLCertificate()" title="忽略缓存并重新检查">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                <path d="M20 11a8 8 0 1 0-2.34 5.66" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M20 4v7h-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span id="cert-refresh-label">重新检查</span>
+                        </button>
                     </div>
                     <div class="cert-info-content">
                         <div class="cert-info-item">
@@ -90,8 +99,9 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
                             <span class="cert-value cert-days" id="cert-days">-</span>
                         </div>
                     </div>
-                    <div class="cert-info-note">
-                        💡 提示：证书信息会缓存到浏览器，并在证书过期后自动重新检测。
+                    <div class="cert-info-message" id="cert-info-message" style="display: none;"></div>
+                    <div class="cert-info-note" id="cert-info-note">
+                        有缓存时直接显示；没有缓存时只自动检查一次。缓存有效期与证书到期时间一致。
                     </div>
                 </div>
             </div>
@@ -308,21 +318,34 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
                 <div class="cert-format-option" data-format="{{ format.id }}">
                     <input type="radio" id="format-{{ format.id }}" name="cert-format" value="{{ format.id }}">
                     <label for="format-{{ format.id }}">
-                        <div class="format-header">
+                        <span class="format-marker">
+                            {% case format.id %}
+                            {% when 'nginx' %}NG
+                            {% when 'apache' %}AP
+                            {% when 'tomcat' %}TC
+                            {% when 'iis' %}IIS
+                            {% when 'jks' %}JKS
+                            {% when 'rootcert' %}CA
+                            {% else %}PEM
+                            {% endcase %}
+                        </span>
+                        <div class="format-copy">
                             <span class="format-name">{{ format.name }}</span>
+                            <span class="format-description">{{ format.description }}</span>
                         </div>
-                        <p class="format-description">{{ format.description }}</p>
-                        <div class="format-files">
-                            <strong>文件列表：</strong>
-                            <ul>
-                                {% for file in format.files %}
-                                <li><code>{{ file.name }}</code> - {{ file.description }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
+                        <span class="format-check" aria-hidden="true">✓</span>
                     </label>
                 </div>
                 {% endfor %}
+            </div>
+
+            <div class="format-selection-detail" id="format-selection-detail" style="display: none;">
+                <div>
+                    <span class="detail-kicker">已选择</span>
+                    <strong id="format-preview-name">-</strong>
+                    <p id="format-preview-description">-</p>
+                </div>
+                <ul id="format-preview-files"></ul>
             </div>
 
             <div class="button-group">
@@ -360,10 +383,12 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
                     </svg>
                     下载证书文件
                 </h3>
-                <p class="download-description">根据您选择的格式，下载相应的证书文件</p>
+                <p class="download-description">推荐直接下载完整 ZIP；需要单个文件时再展开下方列表。</p>
 
-                <div class="cert-files-list" id="cert-files-list">
-                    <!-- 证书文件列表将动态生成 -->
+                <div class="cert-request-progress" id="cert-request-progress">
+                    <div class="loading-spinner"></div>
+                    <strong>正在准备证书文件...</strong>
+                    <div id="cert-request-log" class="cert-request-log"></div>
                 </div>
 
                 <div class="download-all-section">
@@ -379,6 +404,13 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
                         ⏳ 等待证书申请完成...
                     </p>
                 </div>
+
+                <details class="individual-downloads" id="individual-downloads">
+                    <summary>需要单独下载某个文件</summary>
+                    <div class="cert-files-list" id="cert-files-list">
+                        <!-- 证书文件列表将动态生成 -->
+                    </div>
+                </details>
             </div>
 
             <div class="installation-guide" id="installation-guide">
