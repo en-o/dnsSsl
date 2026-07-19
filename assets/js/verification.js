@@ -18,16 +18,6 @@ function prepareVerificationUI() {
     // 更新验证目标显示
     updateVerificationTarget();
 
-    // 显示或隐藏 DNS 服务商选择
-    const dnsProviderSelection = document.getElementById('dns-provider-selection');
-    if (dnsProviderSelection) {
-        if (AppState.verificationMethod === 'dns') {
-            dnsProviderSelection.style.display = 'block';
-        } else {
-            dnsProviderSelection.style.display = 'none';
-        }
-    }
-
     // 显示或隐藏 DNS 记录添加说明
     const dnsInstructionBox = document.getElementById('dns-instruction-box');
     if (dnsInstructionBox) {
@@ -35,7 +25,7 @@ function prepareVerificationUI() {
             dnsInstructionBox.style.display = 'block';
             // 更新说明框中的信息
             const domain = AppState.domain || 'example.com';
-            const fullRecord = '_acme-challenge.' + domain;
+            const fullRecord = '_acme-challenge.' + getDnsChallengeBaseDomain(domain);
             const dnsValue = AppState.dnsValue || 'xxxxx';
 
             const fullRecordEl = document.getElementById('dns-full-record');
@@ -65,7 +55,7 @@ function updateVerificationTarget() {
         valueEl.textContent = 'http://' + domain + '/.well-known/acme-challenge/' + challengeFilename;
     } else if (AppState.verificationMethod === 'dns') {
         const dnsHost = '_acme-challenge';
-        const fullDnsRecord = dnsHost + '.' + domain;
+        const fullDnsRecord = dnsHost + '.' + getDnsChallengeBaseDomain(domain);
         labelEl.textContent = 'DNS 记录：';
         valueEl.innerHTML = '<strong>' + fullDnsRecord + '</strong> (TXT)';
     }
@@ -74,7 +64,7 @@ function updateVerificationTarget() {
 // 重置验证状态
 function resetVerificationStatus() {
     const statusContainer = document.getElementById('verification-status');
-    statusContainer.innerHTML = '<div class="status-pending"><svg class="status-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8V12L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><h3>等待开始验证...</h3><p>请点击"开始验证"按钮</p></div>';
+    statusContainer.innerHTML = '<div class="status-pending"><svg class="status-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8V12L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><h3>正在准备 CA 验证...</h3><p>请稍候</p></div>';
 
     // 隐藏详情和继续按钮
     document.getElementById('verification-details-box').style.display = 'none';
@@ -100,7 +90,7 @@ async function startVerification() {
     logContainer.innerHTML = '';
 
     try {
-        // 直接验证配置（使用步骤2中生成的模拟数据）
+        // 使用步骤2中当前 ACME 订单的真实挑战数据，由 CA 直接验证。
         if (AppState.verificationMethod === 'webserver') {
             await verifyWebServer();
         } else if (AppState.verificationMethod === 'dns') {
@@ -169,132 +159,45 @@ async function verifyWebServer() {
 // DNS 验证
 async function verifyDNS() {
     const domain = AppState.domain;
-    const dnsHost = '_acme-challenge';
     const dnsValue = AppState.dnsValue;
+    const challengeUrl = AppState.dns01ChallengeUrl;
+    const acmeClient = AppState.acmeClient;
 
     if (!dnsValue) {
         throw new Error('DNS 验证值缺失');
     }
+    if (!acmeClient || !challengeUrl) {
+        throw new Error('ACME 订单或 DNS-01 挑战已失效，请返回上一步重新获取');
+    }
 
-    const fullDomain = dnsHost + '.' + domain;
-
-    // 获取选择的 DNS 服务商
-    const selectedProvider = document.querySelector('input[name="dns-provider"]:checked');
-    const provider = selectedProvider ? selectedProvider.value : 'alidns';
-
-    const providerNames = {
-        'alidns': '阿里云 DNS',
-        'dnspod': '腾讯云 DNSPod',
-        'cloudflare': 'Cloudflare DNS',
-        'google': 'Google DNS'
-    };
-
-    addLog('info', '开始 DNS 验证...');
-    addLog('info', '查询域名: ' + fullDomain);
-    const shortValue = dnsValue.length > 20 ? dnsValue.substring(0, 20) + '...' : dnsValue;
-    addLog('info', '预期TXT值: ' + shortValue);
-    addLog('info', '使用 ' + (providerNames[provider] || provider) + ' DoH 服务');
+    const fullDomain = '_acme-challenge.' + getDnsChallengeBaseDomain(domain);
+    addLog('info', '开始 DNS-01 验证...');
+    addLog('info', 'TXT 记录: ' + fullDomain);
+    addLog('info', '正在通知 CA 查询 DNS 记录...');
 
     try {
-        addLog('info', '正在查询 DNS 记录...');
+        await acmeClient.triggerChallenge(challengeUrl);
+        addLog('success', '✓ 验证请求已发送到 CA');
+        addLog('info', '正在等待 DNS 验证结果（最多 90 秒）...');
+        await acmeClient.pollChallengeStatus(challengeUrl);
 
-        // 根据不同服务商构建 DoH URL
-        let dohUrl;
-        switch(provider) {
-            case 'alidns':
-                dohUrl = 'https://dns.alidns.com/resolve?name=' + encodeURIComponent(fullDomain) + '&type=TXT';
-                break;
-            case 'dnspod':
-                dohUrl = 'https://doh.pub/dns-query?name=' + encodeURIComponent(fullDomain) + '&type=TXT';
-                break;
-            case 'cloudflare':
-                dohUrl = 'https://cloudflare-dns.com/dns-query?name=' + encodeURIComponent(fullDomain) + '&type=TXT';
-                break;
-            case 'google':
-            default:
-                dohUrl = 'https://dns.google/resolve?name=' + encodeURIComponent(fullDomain) + '&type=TXT';
-                break;
-        }
-
-        const response = await fetch(dohUrl, {
-            headers: provider === 'cloudflare' ? { 'Accept': 'application/dns-json' } : {}
-        });
-
-        const data = await response.json();
-
-        addLog('info', 'DNS 查询完成，状态: ' + data.Status);
-
-        if (data.Status === 0 && data.Answer && data.Answer.length > 0) {
-            // 解析 TXT 记录
-            const txtRecords = data.Answer
-                .filter(answer => answer.type === 16) // TXT type
-                .map(answer => {
-                    // 移除引号和转义字符
-                    let txt = answer.data || answer.Data || '';
-                    return txt.replace(/^"|"$/g, '').replace(/\\"/g, '"');
-                });
-
-            addLog('info', '找到 ' + txtRecords.length + ' 条 TXT 记录');
-
-            txtRecords.forEach((record, index) => {
-                const shortRecord = record.length > 30 ? record.substring(0, 30) + '...' : record;
-                addLog('info', '记录 ' + (index + 1) + ': ' + shortRecord);
-            });
-
-            // 检查是否包含预期值
-            const found = txtRecords.some(record => record === dnsValue);
-
-            if (found) {
-                addLog('success', '✓ 找到匹配的 TXT 记录');
-                addLog('success', '✓ DNS 验证通过！');
-                addLog('info', '');
-                addLog('warning', '⚠️ ACME 协议重要提示：');
-                addLog('info', '每次申请/续期证书时，验证记录值都会改变！');
-                addLog('info', '原因：CA 服务器每次生成不同的随机 token');
-                addLog('info', '这是 ACME 协议的安全设计，无法绕过');
-                addLog('info', '');
-                addLog('info', '💡 续期建议：');
-                addLog('info', '1. 使用 Certbot 或 acme.sh 等工具自动续期');
-                addLog('info', '2. 或在每次续期时重新配置验证记录');
-                addLog('info', '3. 可以保留 TXT 记录名称，每次只需修改记录值');
-                showVerificationStatus('success', '验证成功！', 'DNS 配置正确，可以继续申请证书');
-                showContinueButton();
-            } else {
-                const recordList = txtRecords.map((r, i) => (i + 1) + '. ' + r).join('\n');
-                addLog('error', '✗ 未找到匹配的 TXT 记录');
-                addLog('info', '已查询到的记录：');
-                txtRecords.forEach((r, i) => addLog('info', '  ' + (i + 1) + '. ' + r));
-                addLog('info', '预期值: ' + dnsValue);
-                throw new Error('未找到匹配的 TXT 记录');
-            }
-        } else {
-            addLog('error', '✗ DNS 查询失败，未找到 TXT 记录');
-            addLog('info', '');
-            addLog('warning', '请确认：');
-            addLog('info', '1. DNS 记录已添加');
-            addLog('info', '2. 等待 DNS 解析生效（可能需要几分钟）');
-            addLog('info', '3. 记录类型为 TXT');
-            addLog('info', '4. 主机记录为 ' + dnsHost);
-            addLog('info', '');
-            addLog('info', '建议手动验证命令：');
-            addLog('info', 'dig ' + fullDomain + ' TXT');
-            addLog('info', '或访问: https://toolbox.googleapps.com/apps/dig/#TXT/' + fullDomain);
-            throw new Error('DNS 查询失败，未找到 TXT 记录');
-        }
+        AppState.acmeValidatedChallengeUrl = challengeUrl;
+        addLog('success', '✓ CA 已确认 DNS TXT 记录匹配');
+        showVerificationStatus('success', '验证成功！', 'CA 已完成 DNS-01 验证，可以继续');
+        showContinueButton();
     } catch (error) {
-        if (error.message.includes('fetch')) {
-            addLog('error', '✗ DNS 查询失败: 网络错误');
-            addLog('warning', '建议：');
-            addLog('info', '1. 检查网络连接');
-            addLog('info', '2. 尝试切换其他 DNS 服务商');
-            addLog('info', '3. 使用命令行工具手动验证');
-        } else if (!error.message.includes('未找到匹配') && !error.message.includes('DNS 查询失败')) {
-            addLog('error', '✗ DNS 查询出错: ' + error.message);
+        AppState.acmeValidatedChallengeUrl = null;
+        addLog('error', '✗ CA DNS 验证失败: ' + error.message);
+        if (error.message.includes('挑战验证失败') || error.message.includes('挑战状态异常')) {
+            if (typeof invalidateActiveAcmeOrder === 'function') {
+                invalidateActiveAcmeOrder();
+            }
+            addLog('warning', '当前挑战已失效，请返回上一步获取新的 TXT 记录值。');
         }
+        showVerificationStatus('error', '验证失败', error.message);
         throw error;
     }
 }
-
 // 显示验证状态
 function showVerificationStatus(type, title, message) {
     const statusContainer = document.getElementById('verification-status');
@@ -432,7 +335,7 @@ async function fetchAcmeChallenge() {
 
             addLog('info', 'DNS 主机记录: ' + challengeData.host);
             addLog('info', 'TXT 记录值: ' + challengeData.value);
-            addLog('info', '完整域名: ' + challengeData.host + '.' + domain);
+            addLog('info', '完整域名: ' + challengeData.host + '.' + getDnsChallengeBaseDomain(domain));
 
             // 更新 UI 中的 DNS 记录值
             const dnsInstructionBox = document.getElementById('dns-instruction-box');
@@ -440,7 +343,7 @@ async function fetchAcmeChallenge() {
                 dnsInstructionBox.style.display = 'block';
                 const fullRecordEl = document.getElementById('dns-full-record');
                 const recordValueEl = document.getElementById('dns-record-value');
-                if (fullRecordEl) fullRecordEl.textContent = challengeData.host + '.' + domain;
+                if (fullRecordEl) fullRecordEl.textContent = challengeData.host + '.' + getDnsChallengeBaseDomain(domain);
                 if (recordValueEl) recordValueEl.textContent = challengeData.value;
             }
         }

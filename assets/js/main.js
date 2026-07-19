@@ -3,6 +3,7 @@ const AppState = {
     currentStep: 1,
     totalSteps: 5,
     domain: '',
+    certificateScope: 'single',
     verificationMethod: 'webserver',
     certFormat: 'nginx',
     acmeProvider: 'letsencrypt',
@@ -20,6 +21,7 @@ const AppState = {
     http01ChallengeUrl: null,  // HTTP-01 挑战 URL
     dns01ChallengeUrl: null,   // DNS-01 挑战 URL
     acmeValidatedChallengeUrl: null, // CA 已确认的挑战 URL
+    realCertificate: null,
     // SSL证书信息
     sslCertInfo: null,
     certDaysRemaining: null
@@ -37,6 +39,9 @@ function initializeApp() {
     // 绑定验证方式切换事件
     bindVerificationMethodChange();
 
+    // 绑定证书范围（单域名/泛域名）
+    bindCertificateScopeChange();
+
     // 绑定证书格式切换事件
     bindCertFormatChange();
 
@@ -51,6 +56,8 @@ function initializeApp() {
 
     // 绑定域名输入框实时检测
     bindDomainInputChange();
+
+    document.getElementById('acme-provider')?.addEventListener('change', updateWizardSummary);
 }
 
 // ==================== 步骤导航 ====================
@@ -110,6 +117,7 @@ function restartWizard() {
     // 重置状态
     AppState.currentStep = 1;
     AppState.domain = '';
+    AppState.certificateScope = 'single';
     AppState.verificationMethod = 'webserver';
     AppState.certFormat = 'nginx';
     AppState.challengeFilename = '';
@@ -120,15 +128,22 @@ function restartWizard() {
     AppState.http01ChallengeUrl = null;
     AppState.dns01ChallengeUrl = null;
     AppState.acmeValidatedChallengeUrl = null;
+    AppState.realCertificate = null;
     clearActiveAcmeOrder();
     AppState.sslCertInfo = null;
     AppState.certDaysRemaining = null;
 
     // 重置表单
     document.getElementById('domain-input').value = '';
+    document.getElementById('scope-single').checked = true;
+    document.getElementById('method-webserver').checked = true;
+    document.getElementById('method-webserver').disabled = false;
+    document.getElementById('method-dns').checked = false;
+    document.querySelector('.verification-option[data-method="webserver"]')?.classList.remove('option-disabled');
     document.getElementById('acme-provider').selectedIndex = 0;
     document.getElementById('tos-agreed').checked = false;
     document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+    updateWizardSummary();
 
     // 隐藏SSL证书信息
     const certInfoBox = document.getElementById('ssl-cert-info');
@@ -167,26 +182,37 @@ function validateStep(step) {
 
 function validateDomain() {
     const domainInput = document.getElementById('domain-input');
-    const domain = domainInput.value.trim();
+    let inputDomain = domainInput.value.trim().toLowerCase();
     const errorElement = document.getElementById('domain-error');
     const tosErrorElement = document.getElementById('tos-error');
 
     // 域名正则表达式（支持通配符）
-    const domainRegex = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 
-    if (!domain) {
+    if (!inputDomain) {
         showError(errorElement, '请输入域名');
         return false;
     }
 
-    if (!domainRegex.test(domain)) {
-        showError(errorElement, '域名格式不正确，请输入有效的域名（如 example.com 或 *.example.com）');
+    if (inputDomain.startsWith('*.')) {
+        inputDomain = inputDomain.substring(2);
+        AppState.certificateScope = 'wildcard';
+        document.getElementById('scope-wildcard').checked = true;
+    }
+
+    if (!domainRegex.test(inputDomain)) {
+        showError(errorElement, '域名格式不正确，请输入有效的域名（如 example.com）');
         return false;
     }
 
     // 保存域名
+    const domain = AppState.certificateScope === 'wildcard' ? '*.' + inputDomain : inputDomain;
+    const selectedProvider = document.getElementById('acme-provider').value;
+    if (AppState.acmeClient && (AppState.domain !== domain || AppState.acmeProvider !== selectedProvider)) {
+        invalidateActiveAcmeOrder();
+    }
     AppState.domain = domain;
-    AppState.acmeProvider = document.getElementById('acme-provider').value;
+    AppState.acmeProvider = selectedProvider;
     if (domain.startsWith('*.')) {
         AppState.verificationMethod = 'dns';
     }
@@ -295,6 +321,7 @@ function onStepEnter(step) {
             document.querySelectorAll('input[name="cert-format"]').forEach(radio => {
                 radio.checked = false;
             });
+            document.getElementById('btn-next-step-4').disabled = true;
             break;
         case 5:
             // 进入步骤5时，申请证书并显示安装指南
@@ -336,9 +363,11 @@ function bindVerificationMethodChange() {
     const radioButtons = document.querySelectorAll('input[name="verification-method"]');
     radioButtons.forEach(radio => {
         radio.addEventListener('change', function() {
+            AppState.verificationMethod = this.value;
             // 切换验证方式时使用同一个订单的不同挑战类型（fetchChallenge = false）
             // 注意：这不是复用旧数据，而是在同一个 ACME 订单中选择不同的验证方式
             showVerificationMethod(this.value, false);
+            updateWizardSummary();
         });
     });
 }
@@ -418,6 +447,33 @@ function loadActiveAcmeOrder(domain, caProvider) {
         sessionStorage.removeItem(ACTIVE_ACME_ORDER_KEY);
         return null;
     }
+}
+
+function bindCertificateScopeChange() {
+    document.querySelectorAll('input[name="certificate-scope"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            AppState.certificateScope = this.value;
+            const domainInput = document.getElementById('domain-input');
+            const hint = document.getElementById('domain-format-hint');
+            if (domainInput.value.startsWith('*.')) {
+                domainInput.value = domainInput.value.substring(2);
+            }
+            domainInput.placeholder = this.value === 'wildcard' ? 'example.com' : 'api.example.com';
+            if (hint) {
+                hint.textContent = this.value === 'wildcard'
+                    ? '输入基础域名，系统将申请 *.example.com；仅覆盖下一级子域名'
+                    : '输入要保护的完整域名，例如 api.example.com';
+            }
+            document.getElementById('ssl-cert-info').style.display = 'none';
+            AppState.sslCertInfo = null;
+            AppState.certDaysRemaining = null;
+            updateWizardSummary();
+        });
+    });
+}
+
+function getDnsChallengeBaseDomain(domain) {
+    return (domain || '').replace(/^\*\./, '');
 }
 
 function saveActiveAcmeOrder(data) {
@@ -534,6 +590,20 @@ async function getRealAcmeChallengeForStep2(method) {
         } else {
             console.warn('[Step2] ⚠️ 未找到 DNS-01 挑战类型');
         }
+
+        saveActiveAcmeOrder({
+            domain,
+            caProvider,
+            orderUrl,
+            http01ChallengeUrl: AppState.http01ChallengeUrl,
+            dns01ChallengeUrl: AppState.dns01ChallengeUrl,
+            challengeFilename: AppState.challengeFilename,
+            challengeContent: AppState.challengeContent,
+            dnsValue: AppState.dnsValue,
+            expiresAt: authorization.expires && Number.isFinite(new Date(authorization.expires).getTime())
+                ? new Date(authorization.expires).getTime()
+                : Date.now() + 60 * 60 * 1000
+        });
 
         console.log('[Step2] ✓ 真实 ACME 挑战数据已保存到 AppState');
 
@@ -691,7 +761,7 @@ function updateVerificationDataUI(method) {
         const dnsValueEl = document.getElementById('dns-value');
 
         // 生成完整的DNS主机记录：_acme-challenge.域名
-        const dnsHost = `_acme-challenge.${AppState.domain}`;
+        const dnsHost = `_acme-challenge.${getDnsChallengeBaseDomain(AppState.domain)}`;
 
         console.log('[DNS UI] 正在更新DNS UI');
         console.log('[DNS UI] DNS主机记录:', dnsHost);
@@ -751,7 +821,7 @@ function generateExampleVerificationData(method) {
         const dnsValueEl = document.getElementById('dns-value');
 
         // 生成完整的DNS主机记录：_acme-challenge.域名
-        const dnsHost = `_acme-challenge.${domain}`;
+        const dnsHost = `_acme-challenge.${getDnsChallengeBaseDomain(domain)}`;
 
         if (dnsHostEl) {
             dnsHostEl.textContent = dnsHost;
@@ -771,19 +841,25 @@ function bindCertFormatChange() {
     radioButtons.forEach(radio => {
         radio.addEventListener('change', function() {
             AppState.certFormat = this.value;
-
-            // 选择格式后自动跳转到下一步
-            setTimeout(() => {
-                nextStep(4);
-            }, 300); // 延迟300ms，让用户看到选中效果
+            const nextButton = document.getElementById('btn-next-step-4');
+            if (nextButton) nextButton.disabled = false;
+            updateWizardSummary();
         });
     });
+}
+
+function beginChallengeVerification() {
+    nextStep(2);
+    if (AppState.currentStep === 3) {
+        setTimeout(() => startVerification(), 0);
+    }
 }
 
 // ==================== 显示安装指南 ====================
 async function startCertificateRequest() {
     // 先显示基本界面，让用户立即看到内容
     displayInstallationGuideBasicInfo();
+    updateIssuanceStatus('pending', '验证已通过，正在签发证书...', '签发成功后即可下载证书文件，请保持当前页面打开。');
 
     // 禁用下载所有按钮，等待证书申请完成
     if (typeof disableDownloadAllButton === 'function') {
@@ -791,11 +867,15 @@ async function startCertificateRequest() {
     }
 
     // 检查是否已经有证书
-    if (AppState.realCertificate) {
+    if (AppState.realCertificate
+        && AppState.realCertificate.domain === AppState.domain
+        && AppState.realCertificate.provider === AppState.acmeProvider) {
         console.log('[Main] 已有真实证书，直接生成证书文件列表');
         generateCertificateFilesListNow();
+        updateIssuanceStatus('success', '证书签发成功！', '证书文件已经准备完成，可以下载并按照下方指南安装。');
         return;
     }
+    AppState.realCertificate = null;
 
     // 在证书文件列表区域显示加载状态
     const filesListContainer = document.getElementById('cert-files-list');
@@ -814,9 +894,11 @@ async function startCertificateRequest() {
 
         // 申请成功，生成证书文件列表
         generateCertificateFilesListNow();
+        updateIssuanceStatus('success', '证书签发成功！', '证书文件已经准备完成，可以下载并按照下方指南安装。');
 
     } catch (error) {
         console.error('[Main] 证书申请失败:', error);
+        updateIssuanceStatus('error', '证书签发失败', error.message || '请检查验证配置后重试。');
         filesListContainer.innerHTML = `
             <div class="error-box" style="margin: 0;">
                 <h4>❌ 证书申请失败</h4>
@@ -982,6 +1064,27 @@ function updateDomainDisplay() {
     domainElements.forEach(el => {
         el.textContent = AppState.domain || 'example.com';
     });
+    document.querySelectorAll('.dns-domain-placeholder').forEach(el => {
+        el.textContent = getDnsChallengeBaseDomain(AppState.domain) || 'example.com';
+    });
+    updateWizardSummary();
+}
+
+function updateWizardSummary() {
+    const summary = document.getElementById('wizard-summary');
+    if (!summary) return;
+
+    if (!AppState.domain) {
+        summary.style.display = 'none';
+        return;
+    }
+
+    summary.style.display = 'flex';
+    document.getElementById('summary-domain').textContent = AppState.domain;
+    document.getElementById('summary-scope').textContent = AppState.certificateScope === 'wildcard' ? '泛域名' : '单域名';
+    document.getElementById('summary-method').textContent = AppState.verificationMethod === 'dns' ? 'DNS-01' : 'HTTP-01';
+    const provider = document.getElementById('acme-provider')?.value || AppState.acmeProvider;
+    document.getElementById('summary-environment').textContent = provider === 'letsencrypt-staging' ? 'Staging 测试' : '生产环境';
 }
 
 // ==================== 工具函数 ====================
@@ -1425,11 +1528,17 @@ function renderDomainHistory() {
 function selectDomainFromHistory(domain) {
     const domainInput = document.getElementById('domain-input');
     if (domainInput) {
-        domainInput.value = domain;
+        const isWildcard = domain.startsWith('*.');
+        const scopeRadio = document.getElementById(isWildcard ? 'scope-wildcard' : 'scope-single');
+        if (scopeRadio) {
+            scopeRadio.checked = true;
+            scopeRadio.dispatchEvent(new Event('change'));
+        }
+        domainInput.value = isWildcard ? domain.substring(2) : domain;
         domainInput.focus();
 
         // 触发SSL证书检测
-        checkSSLCertificate(domain);
+        if (!isWildcard) checkSSLCertificate(domain);
     }
 
     // 隐藏历史记录面板
@@ -1569,20 +1678,6 @@ function getCachedSSLCertInfo(domain) {
             return null;
         }
 
-        saveActiveAcmeOrder({
-            domain,
-            caProvider,
-            orderUrl,
-            http01ChallengeUrl: AppState.http01ChallengeUrl,
-            dns01ChallengeUrl: AppState.dns01ChallengeUrl,
-            challengeFilename: AppState.challengeFilename,
-            challengeContent: AppState.challengeContent,
-            dnsValue: AppState.dnsValue,
-            expiresAt: authorization.expires && Number.isFinite(new Date(authorization.expires).getTime())
-                ? new Date(authorization.expires).getTime()
-                : Date.now() + 60 * 60 * 1000
-        });
-
         // 缓存截止时间就是证书本身的过期时间。
         if (Date.now() >= cached.expiresAt) {
             localStorage.removeItem(cacheKey);
@@ -1599,6 +1694,27 @@ function getCachedSSLCertInfo(domain) {
         localStorage.removeItem(cacheKey);
         return null;
     }
+}
+
+function updateIssuanceStatus(type, title, message) {
+    const box = document.getElementById('issuance-status-box');
+    const icon = document.getElementById('issuance-status-icon');
+    const titleElement = document.getElementById('issuance-status-title');
+    const messageElement = document.getElementById('issuance-status-message');
+    if (!box || !icon || !titleElement || !messageElement) return;
+
+    box.classList.remove('issuance-pending', 'issuance-error');
+    if (type === 'pending') box.classList.add('issuance-pending');
+    if (type === 'error') box.classList.add('issuance-error');
+    if (type === 'pending') {
+        icon.innerHTML = '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+    } else if (type === 'error') {
+        icon.innerHTML = '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M15 9L9 15M9 9L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+    } else {
+        icon.innerHTML = '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+    }
+    titleElement.textContent = title;
+    messageElement.textContent = message;
 }
 
 // 通配符证书按 ACME 规则只能使用 DNS-01。
@@ -1671,7 +1787,8 @@ function cacheSSLCertCheckFailure(domain) {
 function refreshSSLCertificate() {
     const domainInput = document.getElementById('domain-input');
     const domain = domainInput ? domainInput.value.trim() : '';
-    if (!domain || domain.startsWith('*.')) return;
+    const scope = document.querySelector('input[name="certificate-scope"]:checked')?.value || 'single';
+    if (!domain || domain.startsWith('*.') || scope === 'wildcard') return;
 
     clearSSLCertCache(domain);
     AppState.sslCertInfo = null;
@@ -1703,7 +1820,8 @@ function displaySSLCertInfo(certInfo) {
 
 async function checkSSLCertificate(domain, forceRefresh = false) {
     // 通配符域名不检测
-    if (domain.startsWith('*.')) {
+    const scope = document.querySelector('input[name="certificate-scope"]:checked')?.value || 'single';
+    if (domain.startsWith('*.') || scope === 'wildcard') {
         return;
     }
 

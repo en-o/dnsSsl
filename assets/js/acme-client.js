@@ -635,6 +635,14 @@ class AcmeClient {
                 value: domain
             }
         ]);
+        // 现代 TLS 客户端以 subjectAltName 为准；通配符域名也必须写入 SAN。
+        csr.setAttributes([{
+            name: 'extensionRequest',
+            extensions: [{
+                name: 'subjectAltName',
+                altNames: [{ type: 2, value: domain }]
+            }]
+        }]);
 
         // 签名 CSR
         csr.sign(domainKeyPair.privateKey, forge.md.sha256.create());

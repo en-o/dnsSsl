@@ -1,29 +1,29 @@
 /* ==================== 全局样式 ==================== */
 :root {
-    --primary-color: #000000;
-    --primary-hover: #333333;
-    --secondary-color: #666666;
-    --success-color: #00ff00;
-    --danger-color: #ff0000;
-    --warning-color: #ff8800;
-    --info-color: #0088ff;
+    --primary-color: #2563eb;
+    --primary-hover: #1d4ed8;
+    --secondary-color: #64748b;
+    --success-color: #16a34a;
+    --danger-color: #dc2626;
+    --warning-color: #d97706;
+    --info-color: #0284c7;
 
     --bg-color: #ffffff;
-    --bg-secondary: #f5f5f5;
-    --bg-hover: #e0e0e0;
+    --bg-secondary: #f8fafc;
+    --bg-hover: #eff6ff;
 
-    --text-primary: #000000;
-    --text-secondary: #333333;
-    --text-muted: #666666;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
 
-    --border-color: #000000;
-    --border-radius: 0px;
-    --border-radius-lg: 0px;
+    --border-color: #cbd5e1;
+    --border-radius: 10px;
+    --border-radius-lg: 16px;
 
-    --shadow-sm: 0 0 0 0 transparent;
-    --shadow: 0 0 0 0 transparent;
-    --shadow-md: 0 0 0 0 transparent;
-    --shadow-lg: 0 0 0 0 transparent;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    --shadow-md: 0 12px 32px rgba(15, 23, 42, 0.10);
+    --shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.10);
 
     --spacing-xs: 0.5rem;
     --spacing-sm: 0.75rem;
@@ -40,15 +40,12 @@
 }
 
 body {
-    font-family: 'Courier New', 'Consolas', 'Monaco', 'Lucida Console', monospace;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     line-height: 1.6;
     color: var(--text-primary);
-    background: #ffffff;
+    background: #f1f5f9;
     min-height: 100vh;
     padding: var(--spacing-lg);
-    image-rendering: pixelated;
-    image-rendering: -moz-crisp-edges;
-    image-rendering: crisp-edges;
 }
 
 .container {
@@ -61,7 +58,8 @@ body {
     text-align: center;
     margin-bottom: var(--spacing-2xl);
     color: var(--text-primary);
-    border: 2px solid var(--border-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
     padding: var(--spacing-lg);
     background: var(--bg-color);
 }
@@ -93,7 +91,8 @@ body {
 /* ==================== 向导容器 ==================== */
 .wizard-container {
     background: var(--bg-color);
-    border: 2px solid var(--border-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
     box-shadow: var(--shadow-lg);
     padding: var(--spacing-2xl);
     animation: fadeInUp 0.6s ease-out;
@@ -120,7 +119,7 @@ body {
 .step-number {
     width: 40px;
     height: 40px;
-    border-radius: 0;
+    border-radius: 999px;
     background: var(--bg-secondary);
     color: var(--text-secondary);
     display: flex;
@@ -171,6 +170,33 @@ body {
 
 .step.completed + .step-line {
     background: var(--success-color);
+}
+
+.wizard-summary {
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin: calc(-1 * var(--spacing-lg)) auto var(--spacing-xl);
+    padding: var(--spacing-sm) var(--spacing-md);
+    max-width: 800px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+.summary-label {
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+}
+
+.summary-chip {
+    padding: 0.25rem 0.625rem;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
 }
 
 /* ==================== 步骤内容 ==================== */
@@ -356,20 +382,20 @@ body {
 .form-select {
     width: 100%;
     padding: var(--spacing-sm) var(--spacing-md);
-    border: 2px solid var(--border-color);
+    border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     font-size: 1rem;
     transition: all 0.2s ease;
     background: var(--bg-color);
     color: var(--text-primary);
-    font-family: 'Courier New', 'Consolas', 'Monaco', 'Lucida Console', monospace;
+    font-family: inherit;
 }
 
 .form-input:focus,
 .form-select:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
 .input-hint {
@@ -463,6 +489,100 @@ body {
     position: relative;
 }
 
+.success-box.issuance-pending {
+    color: var(--text-primary);
+    background: #eff6ff;
+    border-color: #93c5fd;
+}
+
+.success-box.issuance-pending .success-icon {
+    color: var(--primary-color);
+}
+
+.success-box.issuance-error {
+    color: var(--danger-color);
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+
+.success-box.issuance-error .success-icon {
+    color: var(--danger-color);
+}
+
+.scope-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.scope-option {
+    display: block;
+    cursor: pointer;
+}
+
+.scope-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.scope-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-height: 124px;
+    padding: var(--spacing-lg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-secondary);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.scope-card small {
+    color: var(--text-muted);
+}
+
+.scope-card .scope-note {
+    margin-top: auto;
+    color: var(--warning-color);
+}
+
+.scope-card code {
+    width: fit-content;
+    margin-top: auto;
+    color: var(--primary-color);
+}
+
+.scope-option:hover .scope-card {
+    border-color: #93c5fd;
+    transform: translateY(-1px);
+}
+
+.scope-option input:checked + .scope-card {
+    border-color: var(--primary-color);
+    background: #eff6ff;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.advanced-info {
+    margin: var(--spacing-lg) 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-secondary);
+}
+
+.advanced-info > summary {
+    padding: var(--spacing-md) var(--spacing-lg);
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.advanced-info .ca-info-box {
+    margin: 0 var(--spacing-md) var(--spacing-md);
+}
+
 .verification-option.option-disabled {
     opacity: 0.55;
 }
@@ -482,7 +602,7 @@ body {
 .verification-option label {
     display: block;
     padding: var(--spacing-lg);
-    border: 2px solid var(--border-color);
+    border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     cursor: pointer;
     transition: all 0.2s ease;
@@ -492,12 +612,12 @@ body {
 .verification-option input[type="radio"]:checked + label {
     border-color: var(--primary-color);
     background: var(--bg-hover);
-    box-shadow: 4px 4px 0 var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .verification-option label:hover {
     border-color: var(--primary-color);
-    box-shadow: 2px 2px 0 var(--primary-color);
+    box-shadow: var(--shadow-sm);
 }
 
 .option-header {
@@ -706,7 +826,7 @@ body {
 .cert-format-option label {
     display: block;
     padding: var(--spacing-lg);
-    border: 2px solid var(--border-color);
+    border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     cursor: pointer;
     transition: all 0.2s ease;
@@ -716,12 +836,12 @@ body {
 .cert-format-option input[type="radio"]:checked + label {
     border-color: var(--primary-color);
     background: var(--bg-hover);
-    box-shadow: 4px 4px 0 var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .cert-format-option label:hover {
     border-color: var(--primary-color);
-    box-shadow: 2px 2px 0 var(--primary-color);
+    box-shadow: var(--shadow-sm);
 }
 
 .format-header {
@@ -812,16 +932,15 @@ body {
 
 .btn {
     padding: var(--spacing-sm) var(--spacing-xl);
-    border: 2px solid var(--border-color);
+    border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
     min-width: 120px;
-    font-family: 'Courier New', 'Consolas', 'Monaco', 'Lucida Console', monospace;
-    text-transform: uppercase;
-    letter-spacing: 2px;
+    font-family: inherit;
+    letter-spacing: 0;
 }
 
 .btn-primary {
@@ -831,23 +950,23 @@ body {
 }
 
 .btn-primary:hover {
-    background: #ffffff;
-    color: var(--primary-color);
-    transform: translateY(-2px);
-    box-shadow: 4px 4px 0 var(--primary-color);
+    background: var(--primary-hover);
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary {
     background: var(--bg-color);
     color: var(--text-primary);
-    border-color: var(--text-primary);
+    border-color: var(--border-color);
 }
 
 .btn-secondary:hover {
-    background: var(--text-primary);
-    color: #ffffff;
-    transform: translateY(-2px);
-    box-shadow: 4px 4px 0 var(--text-primary);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn:disabled {
@@ -963,6 +1082,19 @@ body {
         grid-template-columns: 1fr;
     }
 
+    .scope-options {
+        grid-template-columns: 1fr;
+    }
+
+    .scope-card {
+        min-height: auto;
+    }
+
+    .wizard-summary {
+        justify-content: flex-start;
+        margin-top: calc(-1 * var(--spacing-md));
+    }
+
     .button-group {
         flex-direction: column-reverse;
     }
@@ -1005,22 +1137,6 @@ body {
         font-size: 0.875rem;
     }
 
-    /* DNS 服务商选择移动端优化 */
-    .dns-provider-options {
-        grid-template-columns: 1fr;
-    }
-
-    .dns-provider-option {
-        padding: var(--spacing-xs) var(--spacing-sm);
-    }
-
-    .provider-name {
-        font-size: 0.875rem;
-    }
-
-    .provider-desc {
-        font-size: 0.6875rem;
-    }
 }
 
 @media (max-width: 480px) {
@@ -1052,7 +1168,8 @@ body {
 }
 
 /* ==================== 辅助类 ==================== */
-.domain-placeholder {
+.domain-placeholder,
+.dns-domain-placeholder {
     color: var(--primary-color);
     font-weight: 600;
 }
@@ -1070,75 +1187,6 @@ body {
 }
 
 /* ==================== 验证相关样式 ==================== */
-
-/* DNS 服务商选择 */
-.dns-provider-selection {
-    background: var(--bg-secondary);
-    padding: var(--spacing-lg);
-    border-radius: var(--border-radius);
-    margin: var(--spacing-xl) 0;
-    border: 1px solid var(--border-color);
-}
-
-.dns-provider-selection h4 {
-    margin-bottom: var(--spacing-md);
-    color: var(--text-primary);
-}
-
-.dns-provider-options {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--spacing-sm);
-}
-
-.dns-provider-option {
-    display: flex;
-    align-items: center;
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--bg-secondary);
-    border: 2px solid var(--border-color);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.dns-provider-option:hover {
-    border-color: var(--primary-color);
-    background: var(--bg-hover);
-    box-shadow: 2px 2px 0 var(--primary-color);
-}
-
-.dns-provider-option input[type="radio"] {
-    margin-right: var(--spacing-sm);
-    cursor: pointer;
-}
-
-.dns-provider-option input[type="radio"]:checked {
-    accent-color: var(--primary-color);
-}
-
-.dns-provider-option:has(input[type="radio"]:checked) {
-    border-color: var(--primary-color);
-    background: var(--bg-hover);
-    box-shadow: 4px 4px 0 var(--primary-color);
-}
-
-.provider-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.provider-name {
-    font-weight: 600;
-    color: var(--text-primary);
-    font-size: 0.9375rem;
-}
-
-.provider-desc {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-}
 
 /* 验证信息摘要 */
 .verification-summary {
@@ -1651,6 +1699,7 @@ body {
 .cert-refresh-btn {
     border: 1px solid var(--border-color);
     background: var(--bg-color);
+    box-shadow: var(--shadow-sm);
     color: var(--text-secondary);
     padding: 0.25rem 0.625rem;
     cursor: pointer;

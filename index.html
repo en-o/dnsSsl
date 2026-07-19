@@ -8,16 +8,44 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
     <!-- 步骤指示器 -->
     {% include step-indicator.html %}
 
+    <div class="wizard-summary" id="wizard-summary" style="display: none;">
+        <span class="summary-label">当前申请</span>
+        <span class="summary-chip" id="summary-domain">-</span>
+        <span class="summary-chip" id="summary-scope">-</span>
+        <span class="summary-chip" id="summary-method">-</span>
+        <span class="summary-chip" id="summary-environment">-</span>
+    </div>
+
     <!-- 步骤 1: 输入域名 -->
     <div class="step-content" id="step-1" style="display: block;">
         <div class="step-card">
-            <h2>步骤 1：输入您的域名</h2>
-            <p class="step-description">请输入需要申请 SSL 证书的域名。支持单域名和通配符域名（如 *.example.com）。</p>
+            <h2>步骤 1：选择证书类型</h2>
+            <p class="step-description">先选择要保护一个站点，还是同时保护同一基础域名下的多个子域名。</p>
+
+            <div class="scope-options">
+                <label class="scope-option">
+                    <input type="radio" id="scope-single" name="certificate-scope" value="single" checked>
+                    <span class="scope-card">
+                        <strong>单域名证书</strong>
+                        <small>保护一个完整域名</small>
+                        <code>api.example.com</code>
+                    </span>
+                </label>
+                <label class="scope-option">
+                    <input type="radio" id="scope-wildcard" name="certificate-scope" value="wildcard">
+                    <span class="scope-card">
+                        <strong>泛域名证书</strong>
+                        <small>保护同级的所有子域名</small>
+                        <code>*.example.com</code>
+                        <small class="scope-note">不包含根域名 example.com 本身</small>
+                    </span>
+                </label>
+            </div>
 
             <div class="form-group">
-                <label for="domain-input">域名：</label>
+                <label for="domain-input">要保护的域名</label>
                 <div class="domain-input-wrapper">
-                    <input type="text" id="domain-input" class="form-input" placeholder="example.com" autocomplete="off">
+                    <input type="text" id="domain-input" class="form-input" placeholder="api.example.com" autocomplete="off">
                     <button type="button" class="history-toggle-btn" id="history-toggle" title="查看历史记录">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M12 8V12L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -35,7 +63,7 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
                         <!-- 历史记录将动态加载到这里 -->
                     </ul>
                 </div>
-                <p class="input-hint">支持格式：example.com、www.example.com、*.example.com</p>
+                <p class="input-hint" id="domain-format-hint">输入要保护的完整域名，例如 api.example.com</p>
                 <p class="error-message" id="domain-error" style="display: none;"></p>
 
                 <!-- SSL证书有效期检测结果 -->
@@ -91,36 +119,39 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
                     <li>完全免费，自动化颁发</li>
                     <li>受所有主流浏览器信任</li>
                     <li>证书有效期 90 天，支持自动续期</li>
-                    <li>支持单域名、多域名和通配符证书</li>
+                    <li>当前工具支持单域名和泛域名证书</li>
                 </ul>
             </div>
 
-            <div class="ca-info-box" style="background: #fef3c7; border: 2px solid #f59e0b;">
-                <h4 style="color: #92400e;">📋 Staging 环境说明</h4>
-                <p style="color: #78350f; margin-bottom: 8px;"><strong>Staging 环境（测试环境）用途：</strong></p>
-                <ul style="color: #78350f;">
-                    <li><strong>学习和测试：</strong>速率限制更宽松，适合反复调试</li>
-                    <li><strong>流程完全相同：</strong>与生产环境的申请流程100%一致</li>
-                    <li><strong>证书不受信任：</strong>浏览器会显示"不安全"（这是正常的）</li>
-                    <li><strong>切换简单：</strong>测试成功后，切换到生产环境即可获得真实证书</li>
-                </ul>
-                <p style="margin-top: 8px; font-size: 14px; color: #92400e;">💡 首次使用强烈建议先用 Staging 环境练习，避免触发速率限制</p>
-            </div>
+            <details class="advanced-info">
+                <summary>了解测试环境、速率限制和 ACME 验证规则</summary>
+                <div class="ca-info-box" style="background: #fef3c7; border: 1px solid #f59e0b;">
+                    <h4 style="color: #92400e;">📋 Staging 环境说明</h4>
+                    <p style="color: #78350f; margin-bottom: 8px;"><strong>Staging 环境（测试环境）用途：</strong></p>
+                    <ul style="color: #78350f;">
+                        <li><strong>学习和测试：</strong>速率限制更宽松，适合反复调试</li>
+                        <li><strong>流程完全相同：</strong>与生产环境的申请流程100%一致</li>
+                        <li><strong>证书不受信任：</strong>浏览器会显示"不安全"（这是正常的）</li>
+                        <li><strong>切换简单：</strong>测试成功后，切换到生产环境即可获得真实证书</li>
+                    </ul>
+                    <p style="margin-top: 8px; font-size: 14px; color: #92400e;">💡 首次使用强烈建议先用 Staging 环境练习，避免触发速率限制</p>
+                </div>
 
-            <div class="ca-info-box" style="background: #fef2f2; border-left: 4px solid #ef4444;">
-                <h4 style="color: #ef4444;">⚠️ ACME 协议重要特性</h4>
-                <p style="margin-bottom: 8px; color: #991b1b;"><strong>每次申请/续期证书时，验证数据都会改变：</strong></p>
-                <ul style="color: #991b1b;">
-                    <li><strong>HTTP-01 验证：</strong>文件名和内容每次不同（CA 服务器随机生成 token）</li>
-                    <li><strong>DNS-01 验证：</strong>TXT 记录值每次不同（基于随机 token 计算）</li>
-                    <li><strong>原因：</strong>这是 ACME 协议的安全设计，无法绕过</li>
-                    <li><strong>建议：</strong>使用 Certbot 或 acme.sh 等工具实现自动续期</li>
-                </ul>
-                <p style="margin-top: 8px; font-size: 14px; color: #7f1d1d;">💡 本工具适合首次申请或学习 ACME 流程，生产环境建议使用自动化工具</p>
-            </div>
+                <div class="ca-info-box" style="background: #fef2f2; border-left: 4px solid #ef4444;">
+                    <h4 style="color: #ef4444;">⚠️ ACME 协议重要特性</h4>
+                    <p style="margin-bottom: 8px; color: #991b1b;"><strong>每次申请/续期证书时，验证数据都会改变：</strong></p>
+                    <ul style="color: #991b1b;">
+                        <li><strong>HTTP-01 验证：</strong>文件名和内容每次不同（CA 服务器随机生成 token）</li>
+                        <li><strong>DNS-01 验证：</strong>TXT 记录值每次不同（基于随机 token 计算）</li>
+                        <li><strong>原因：</strong>这是 ACME 协议的安全设计，无法绕过</li>
+                        <li><strong>建议：</strong>使用 Certbot 或 acme.sh 等工具实现自动续期</li>
+                    </ul>
+                    <p style="margin-top: 8px; font-size: 14px; color: #7f1d1d;">💡 本工具适合首次申请或学习 ACME 流程，生产环境建议使用自动化工具</p>
+                </div>
+            </details>
 
             <div class="button-group">
-                <button class="btn btn-primary" onclick="nextStep(1)">下一步</button>
+                <button class="btn btn-primary" onclick="nextStep(1)">继续：配置域名验证</button>
             </div>
         </div>
     </div>
@@ -170,7 +201,7 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
 
             <div class="button-group">
                 <button class="btn btn-secondary" onclick="prevStep(2)">上一步</button>
-                <button id="btn-next-step-2" class="btn btn-primary" onclick="nextStep(2)" disabled>下一步</button>
+                <button id="btn-next-step-2" class="btn btn-primary" onclick="beginChallengeVerification()" disabled>已完成配置，开始 CA 验证</button>
             </div>
             <p id="step2-hint" class="step-hint" style="text-align: center; margin-top: 12px; font-size: 14px; color: #64748b;">
                 ⏳ 正在获取验证数据...
@@ -181,8 +212,8 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
     <!-- 步骤 3: 自动验证 -->
     <div class="step-content" id="step-3" style="display: none;">
         <div class="step-card">
-            <h2>步骤 3：自动验证配置</h2>
-            <p class="step-description">系统将自动验证您的配置是否正确。</p>
+            <h2>步骤 3：等待 CA 验证</h2>
+            <p class="step-description">系统会通知 Let's Encrypt 访问验证文件或查询 DNS 记录，无需再手动点击。</p>
 
             <!-- 验证信息摘要 -->
             <div class="verification-summary">
@@ -232,8 +263,8 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
                         <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" opacity="0.25"/>
                         <path d="M12 2 A10 10 0 0 1 22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                     </svg>
-                    <h3>等待开始验证...</h3>
-                    <p>请点击"开始验证"按钮</p>
+                    <h3>正在准备 CA 验证...</h3>
+                    <p>请稍候</p>
                 </div>
             </div>
 
@@ -252,50 +283,15 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
                 <div class="info-content">
                     <strong>关于验证：</strong>
                     <p><strong>Web 服务器验证：</strong>系统会通知 CA 服务器通过 HTTP 访问验证文件。</p>
-                    <p><strong>DNS 验证：</strong>系统会查询 DNS TXT 记录（使用公共 DNS 服务器）。</p>
+                    <p><strong>DNS 验证：</strong>CA 服务器会查询权威 DNS 中的 TXT 记录。</p>
                     <p class="note">注意：HTTP-01 结果以 CA 服务器返回的挑战状态为准，不依赖浏览器跨域访问或公共代理。</p>
                     <p class="note">确保权限<code> chmod -R 755 /.well-known/acme-challenge/</code></p>
                 </div>
             </div>
 
-            <!-- DNS 服务商选择 -->
-            <div class="dns-provider-selection" id="dns-provider-selection" style="display: none;">
-                <h4>DNS 查询服务：</h4>
-                <div class="dns-provider-options">
-                    <label class="dns-provider-option">
-                        <input type="radio" name="dns-provider" value="alidns" checked>
-                        <div class="provider-info">
-                            <span class="provider-name">阿里云 DNS</span>
-                            <span class="provider-desc">推荐中国大陆用户使用</span>
-                        </div>
-                    </label>
-                    <label class="dns-provider-option">
-                        <input type="radio" name="dns-provider" value="dnspod">
-                        <div class="provider-info">
-                            <span class="provider-name">腾讯云 DNSPod</span>
-                            <span class="provider-desc">国内访问快速稳定</span>
-                        </div>
-                    </label>
-                    <label class="dns-provider-option">
-                        <input type="radio" name="dns-provider" value="cloudflare">
-                        <div class="provider-info">
-                            <span class="provider-name">Cloudflare DNS</span>
-                            <span class="provider-desc">全球可用，速度较快</span>
-                        </div>
-                    </label>
-                    <label class="dns-provider-option">
-                        <input type="radio" name="dns-provider" value="google">
-                        <div class="provider-info">
-                            <span class="provider-name">Google DNS</span>
-                            <span class="provider-desc">国外用户推荐</span>
-                        </div>
-                    </label>
-                </div>
-            </div>
-
             <div class="button-group">
                 <button class="btn btn-secondary" onclick="prevStep(3)">上一步</button>
-                <button class="btn btn-primary" onclick="startVerification()" id="verify-start-button">开始验证</button>
+                <button class="btn btn-primary" onclick="startVerification()" id="verify-start-button">开始 CA 验证</button>
                 <button class="btn btn-primary" onclick="nextStep(3)" id="verify-continue-button" style="display: none;">继续下一步</button>
             </div>
         </div>
@@ -331,7 +327,7 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
 
             <div class="button-group">
                 <button class="btn btn-secondary" onclick="prevStep(4)">上一步</button>
-                <!-- 选择格式后会自动跳转，不需要下一步按钮 -->
+                <button id="btn-next-step-4" class="btn btn-primary" onclick="nextStep(4)" disabled>确认格式并申请证书</button>
             </div>
         </div>
     </div>
@@ -339,15 +335,16 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
     <!-- 步骤 5: 下载证书和安装指南 -->
     <div class="step-content" id="step-5" style="display: none;">
         <div class="step-card">
-            <h2>步骤 5：证书安装指南</h2>
-            <p class="step-description">恭喜！以下是您选择的 <strong><span id="selected-format-name"></span></strong> 格式的安装指南。</p>
+            <h2>步骤 5：签发、下载与安装</h2>
+            <p class="step-description">证书签发完成后，可按您选择的 <strong><span id="selected-format-name"></span></strong> 格式下载和安装。</p>
 
-            <div class="success-box">
-                <svg class="success-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <div class="success-box issuance-pending" id="issuance-status-box">
+                <svg class="success-icon" id="issuance-status-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
                     <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                <h3>证书申请流程已完成！</h3>
+                <h3 id="issuance-status-title">验证已通过，正在签发证书...</h3>
+                <p id="issuance-status-message">签发成功后即可下载证书文件，请保持当前页面打开。</p>
                 <p>域名：<strong><span class="domain-display"></span></strong></p>
                 <p>验证方式：<strong><span id="selected-method-name"></span></strong></p>
                 <p>证书格式：<strong><span id="selected-format-display"></span></strong></p>
