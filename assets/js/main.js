@@ -1557,6 +1557,7 @@ function bindDomainInputChange() {
 
 // ==================== SSL证书检测 ====================
 const SSL_CERT_CACHE_PREFIX = 'ssl_cert_info_v1:';
+const SSL_CERT_FAILURE_CACHE_PREFIX = 'ssl_cert_failure_v1:';
 const sslCertChecksInFlight = new Map();
 
 function getCachedSSLCertInfo(domain) {
@@ -1639,8 +1640,31 @@ function clearSSLCertCache(domain) {
     if (!domain) return;
     try {
         localStorage.removeItem(SSL_CERT_CACHE_PREFIX + domain.toLowerCase());
+        localStorage.removeItem(SSL_CERT_FAILURE_CACHE_PREFIX + domain.toLowerCase());
     } catch (error) {
         console.warn('SSL 证书缓存清理失败:', error.message);
+    }
+}
+
+function hasRecentSSLCertCheckFailure(domain) {
+    try {
+        const expiresAt = Number(localStorage.getItem(SSL_CERT_FAILURE_CACHE_PREFIX + domain.toLowerCase()));
+        if (Number.isFinite(expiresAt) && expiresAt > Date.now()) return true;
+        localStorage.removeItem(SSL_CERT_FAILURE_CACHE_PREFIX + domain.toLowerCase());
+    } catch (error) {
+        return false;
+    }
+    return false;
+}
+
+function cacheSSLCertCheckFailure(domain) {
+    try {
+        localStorage.setItem(
+            SSL_CERT_FAILURE_CACHE_PREFIX + domain.toLowerCase(),
+            String(Date.now() + 5 * 60 * 1000)
+        );
+    } catch (error) {
+        console.warn('SSL 证书失败缓存写入失败:', error.message);
     }
 }
 
@@ -1695,6 +1719,10 @@ async function checkSSLCertificate(domain, forceRefresh = false) {
             displaySSLCertInfo(cachedCertInfo);
             return;
         }
+        if (!forceRefresh && hasRecentSSLCertCheckFailure(domain)) {
+            certInfoBox.style.display = 'none';
+            return;
+        }
 
         // 显示加载状态
         certInfoBox.style.display = 'block';
@@ -1718,6 +1746,7 @@ async function checkSSLCertificate(domain, forceRefresh = false) {
 
         if (certInfo) {
             cacheSSLCertInfo(domain, certInfo);
+            localStorage.removeItem(SSL_CERT_FAILURE_CACHE_PREFIX + domain.toLowerCase());
 
             // 请求返回时域名可能已经被用户改掉，避免显示上一个域名的结果。
             const currentDomain = document.getElementById('domain-input').value.trim().toLowerCase();
@@ -1726,12 +1755,14 @@ async function checkSSLCertificate(domain, forceRefresh = false) {
             }
         } else {
             // 未检测到证书
+            cacheSSLCertCheckFailure(domain);
             certInfoBox.style.display = 'none';
             AppState.sslCertInfo = null;
             AppState.certDaysRemaining = null;
         }
     } catch (error) {
         console.log('SSL证书检测失败:', error.message);
+        cacheSSLCertCheckFailure(domain);
         certInfoBox.style.display = 'none';
         AppState.sslCertInfo = null;
         AppState.certDaysRemaining = null;
