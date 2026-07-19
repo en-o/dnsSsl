@@ -1,8 +1,8 @@
 # 网站配置
 title: DNS SSL 证书申请助手
-description: 免费 SSL 证书申请引导工具，支持 Let's Encrypt 和 ZeroSSL
+description: 免费 SSL 证书申请引导工具，支持 Let's Encrypt
 baseurl: "" # 如果部署在子目录，填写子目录名称，如 "/dnsSsl"
-url: "ssl.tannn.cn" # 网站 URL，如 "https://yourusername.github.io"
+url: "https://ssl.tannn.cn" # 网站 URL，如 "https://yourusername.github.io"
 
 # 构建设置
 markdown: kramdown
@@ -26,13 +26,10 @@ exclude:
 
 # 网站信息
 author: Your Name
-keywords: SSL证书, HTTPS, Let's Encrypt, ZeroSSL, ACME协议, 免费证书
+keywords: SSL证书, HTTPS, Let's Encrypt, ACME协议, 免费证书
 
 # ACME CA 提供商
 acme_providers:
   - name: Let's Encrypt
     url: https://letsencrypt.org/
     description: 全球使用最广泛的免费 SSL 证书服务
-  - name: ZeroSSL
-    url: https://zerossl.com/
-    description: 另一个流行的免费 SSL 证书提供商

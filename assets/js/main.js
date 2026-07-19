@@ -19,6 +19,7 @@ const AppState = {
     acmeOrderUrl: null,
     http01ChallengeUrl: null,  // HTTP-01 挑战 URL
     dns01ChallengeUrl: null,   // DNS-01 挑战 URL
+    acmeValidatedChallengeUrl: null, // CA 已确认的挑战 URL
     // SSL证书信息
     sslCertInfo: null,
     certDaysRemaining: null
@@ -96,6 +97,11 @@ function prevStep(currentStep) {
     AppState.currentStep = prevStepNum;
     updateStepIndicator();
 
+    // 挑战进入终态失败后，返回步骤2时自动创建新订单和 token。
+    if (prevStepNum === 2 && !AppState.acmeClient) {
+        onStepEnter(2);
+    }
+
     // 滚动到顶部
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -113,12 +119,15 @@ function restartWizard() {
     AppState.acmeOrderUrl = null;
     AppState.http01ChallengeUrl = null;
     AppState.dns01ChallengeUrl = null;
+    AppState.acmeValidatedChallengeUrl = null;
+    clearActiveAcmeOrder();
     AppState.sslCertInfo = null;
     AppState.certDaysRemaining = null;
 
     // 重置表单
     document.getElementById('domain-input').value = '';
     document.getElementById('acme-provider').selectedIndex = 0;
+    document.getElementById('tos-agreed').checked = false;
     document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
 
     // 隐藏SSL证书信息
@@ -160,6 +169,7 @@ function validateDomain() {
     const domainInput = document.getElementById('domain-input');
     const domain = domainInput.value.trim();
     const errorElement = document.getElementById('domain-error');
+    const tosErrorElement = document.getElementById('tos-error');
 
     // 域名正则表达式（支持通配符）
     const domainRegex = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
@@ -177,7 +187,16 @@ function validateDomain() {
     // 保存域名
     AppState.domain = domain;
     AppState.acmeProvider = document.getElementById('acme-provider').value;
+    if (domain.startsWith('*.')) {
+        AppState.verificationMethod = 'dns';
+    }
+
+    if (!document.getElementById('tos-agreed').checked) {
+        showError(tosErrorElement, '请先阅读并同意 ACME CA 服务条款');
+        return false;
+    }
     hideError(errorElement);
+    hideError(tosErrorElement);
 
     // 保存到历史记录
     saveDomainToHistory(domain);
@@ -249,6 +268,7 @@ function onStepEnter(step) {
             break;
         case 2:
             updateDomainDisplay();
+            configureWildcardVerification();
             // 进入步骤2时获取 ACME 挑战数据（每次申请都会生成新的 token）
             // 注意：同一个 ACME 订单会同时提供 HTTP-01 和 DNS-01 两种挑战
             // 在当前申请流程中切换验证方式时，使用同一订单的不同挑战类型
@@ -385,6 +405,41 @@ function showVerificationMethod(method, fetchChallenge = true) {
 }
 
 // ==================== 获取真实的 ACME 挑战数据（步骤2使用）====================
+const ACTIVE_ACME_ORDER_KEY = 'active_acme_order_v1';
+
+function loadActiveAcmeOrder(domain, caProvider) {
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(ACTIVE_ACME_ORDER_KEY));
+        if (!saved || saved.domain !== domain || saved.caProvider !== caProvider || !Number.isFinite(saved.expiresAt) || saved.expiresAt <= Date.now()) {
+            return null;
+        }
+        return saved;
+    } catch (error) {
+        sessionStorage.removeItem(ACTIVE_ACME_ORDER_KEY);
+        return null;
+    }
+}
+
+function saveActiveAcmeOrder(data) {
+    sessionStorage.setItem(ACTIVE_ACME_ORDER_KEY, JSON.stringify(data));
+}
+
+function clearActiveAcmeOrder() {
+    sessionStorage.removeItem(ACTIVE_ACME_ORDER_KEY);
+}
+
+function invalidateActiveAcmeOrder() {
+    clearActiveAcmeOrder();
+    AppState.acmeClient = null;
+    AppState.acmeOrderUrl = null;
+    AppState.http01ChallengeUrl = null;
+    AppState.dns01ChallengeUrl = null;
+    AppState.acmeValidatedChallengeUrl = null;
+    AppState.challengeFilename = '';
+    AppState.challengeContent = '';
+    AppState.dnsValue = '';
+}
+
 /**
  * ⚠️ ACME 协议重要特性说明：
  *
@@ -416,6 +471,26 @@ async function getRealAcmeChallengeForStep2(method) {
 
         // 创建或获取账户
         await acmeClient.createAccount('');
+
+        // 刷新页面后优先恢复当前会话中尚未失效的订单，避免生成新 token。
+        const savedOrder = loadActiveAcmeOrder(domain, caProvider);
+        if (savedOrder) {
+            const orderResponse = await acmeClient.sendJWS(savedOrder.orderUrl, '');
+            if (!['invalid', 'expired', 'revoked'].includes(orderResponse.data.status)) {
+                AppState.acmeClient = acmeClient;
+                AppState.acmeOrderUrl = savedOrder.orderUrl;
+                AppState.http01ChallengeUrl = savedOrder.http01ChallengeUrl;
+                AppState.dns01ChallengeUrl = savedOrder.dns01ChallengeUrl;
+                AppState.challengeFilename = savedOrder.challengeFilename;
+                AppState.challengeContent = savedOrder.challengeContent;
+                AppState.dnsValue = savedOrder.dnsValue;
+                console.log('[Step2] 已恢复当前会话的 ACME 订单:', savedOrder.orderUrl);
+                updateVerificationDataUI(method);
+                enableStep2NextButton();
+                return;
+            }
+            clearActiveAcmeOrder();
+        }
 
         // 创建订单（一次性为两种验证方式创建挑战数据）
         const { order, orderUrl } = await acmeClient.createOrder(domain);
@@ -519,7 +594,7 @@ async function getRealAcmeChallengeForStep2(method) {
             // 速率限制错误 - 提供详细说明和解决方案
             const errorMsg = `⚠️ Let's Encrypt 速率限制
 
-您的域名 "${domain}" 在过去7天内已申请了5次证书，达到速率限制。
+您的请求已触发 CA 速率限制。
 
 解决方案：
 1. 【推荐】切换到 "Let's Encrypt Staging" 测试环境
@@ -528,8 +603,8 @@ async function getRealAcmeChallengeForStep2(method) {
    - Staging 环境速率限制更宽松，适合测试学习
 
 2. 等待限制解除
-   - 需要等到 2025-12-23 19:19 后才能再次申请
-   - 查看详情：https://letsencrypt.org/docs/rate-limits/
+   - 请以下方 CA 返回的错误详情或 Retry-After 时间为准
+   - 查看说明：https://letsencrypt.org/docs/rate-limits/
 
 3. 使用不同的域名进行测试
 
@@ -540,14 +615,14 @@ async function getRealAcmeChallengeForStep2(method) {
             // 在页面上显示醒目的错误提示
             showStep2ErrorNotice('速率限制', `
                 <h4 style="color: #dc2626; margin-bottom: 0.5rem;">⚠️ Let's Encrypt 速率限制</h4>
-                <p style="margin-bottom: 0.5rem;">您的域名 <strong>${escapeHtml(domain)}</strong> 在过去7天内已申请了5次证书，达到速率限制。</p>
+                <p style="margin-bottom: 0.5rem;">域名 <strong>${escapeHtml(domain)}</strong> 的请求已触发 CA 速率限制。</p>
                 <p style="margin-bottom: 0.5rem;"><strong>推荐解决方案：</strong></p>
                 <ol style="margin-left: 1.5rem; margin-bottom: 0.5rem;">
                     <li>点击下方"上一步"返回</li>
                     <li>选择 <strong>"Let's Encrypt Staging（测试环境）"</strong></li>
                     <li>重新进入步骤2即可继续测试</li>
                 </ol>
-                <p style="font-size: 0.875rem; color: #7f1d1d; margin-top: 0.5rem;">💡 Staging 环境速率限制极宽松（每3小时30,000次），适合学习和测试</p>
+                <p style="font-size: 0.875rem; color: #7f1d1d; margin-top: 0.5rem;">💡 Staging 环境速率限制更宽松，适合学习和测试</p>
                 <details style="margin-top: 0.5rem;">
                     <summary style="cursor: pointer; color: #991b1b; font-size: 0.875rem;">查看详细错误信息</summary>
                     <pre style="background: white; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.75rem; margin-top: 0.5rem;">${escapeHtml(errorDetail || errorMessage)}</pre>
@@ -745,7 +820,7 @@ async function startCertificateRequest() {
         filesListContainer.innerHTML = `
             <div class="error-box" style="margin: 0;">
                 <h4>❌ 证书申请失败</h4>
-                <p class="error-message">${error.message}</p>
+                <p class="error-message">${escapeHtml(error.message)}</p>
                 <p style="margin-top: 1rem;">请返回步骤3重新验证配置，或检查以下内容：</p>
                 <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
                     <li>HTTP-01: 验证文件是否可以通过 HTTP 访问</li>
@@ -1481,7 +1556,128 @@ function bindDomainInputChange() {
 }
 
 // ==================== SSL证书检测 ====================
-async function checkSSLCertificate(domain) {
+const SSL_CERT_CACHE_PREFIX = 'ssl_cert_info_v1:';
+const sslCertChecksInFlight = new Map();
+
+function getCachedSSLCertInfo(domain) {
+    const cacheKey = SSL_CERT_CACHE_PREFIX + domain.toLowerCase();
+    try {
+        const cached = JSON.parse(localStorage.getItem(cacheKey));
+        if (!cached || !Number.isFinite(cached.expiresAt)) {
+            localStorage.removeItem(cacheKey);
+            return null;
+        }
+
+        saveActiveAcmeOrder({
+            domain,
+            caProvider,
+            orderUrl,
+            http01ChallengeUrl: AppState.http01ChallengeUrl,
+            dns01ChallengeUrl: AppState.dns01ChallengeUrl,
+            challengeFilename: AppState.challengeFilename,
+            challengeContent: AppState.challengeContent,
+            dnsValue: AppState.dnsValue,
+            expiresAt: authorization.expires && Number.isFinite(new Date(authorization.expires).getTime())
+                ? new Date(authorization.expires).getTime()
+                : Date.now() + 60 * 60 * 1000
+        });
+
+        // 缓存截止时间就是证书本身的过期时间。
+        if (Date.now() >= cached.expiresAt) {
+            localStorage.removeItem(cacheKey);
+            return null;
+        }
+
+        return {
+            issuer: cached.issuer,
+            expiryDate: cached.expiryDate,
+            expiryTimestamp: cached.expiresAt,
+            daysRemaining: Math.ceil((cached.expiresAt - Date.now()) / (1000 * 60 * 60 * 24))
+        };
+    } catch (error) {
+        localStorage.removeItem(cacheKey);
+        return null;
+    }
+}
+
+// 通配符证书按 ACME 规则只能使用 DNS-01。
+function configureWildcardVerification() {
+    const isWildcard = AppState.domain.startsWith('*.');
+    const httpRadio = document.getElementById('method-webserver');
+    const dnsRadio = document.getElementById('method-dns');
+    const httpOption = document.querySelector('.verification-option[data-method="webserver"]');
+
+    if (httpRadio) httpRadio.disabled = isWildcard;
+    if (httpOption) {
+        httpOption.classList.toggle('option-disabled', isWildcard);
+        httpOption.title = isWildcard ? '通配符证书只支持 DNS-01 验证' : '';
+    }
+    if (isWildcard && dnsRadio) {
+        dnsRadio.checked = true;
+        AppState.verificationMethod = 'dns';
+    }
+}
+
+function cacheSSLCertInfo(domain, certInfo) {
+    if (!Number.isFinite(certInfo.expiryTimestamp) || certInfo.expiryTimestamp <= Date.now()) {
+        return;
+    }
+
+    try {
+        localStorage.setItem(SSL_CERT_CACHE_PREFIX + domain.toLowerCase(), JSON.stringify({
+            issuer: certInfo.issuer,
+            expiryDate: certInfo.expiryDate,
+            fetchedAt: Date.now(),
+            expiresAt: certInfo.expiryTimestamp
+        }));
+    } catch (error) {
+        console.warn('SSL 证书信息缓存失败:', error.message);
+    }
+}
+
+function clearSSLCertCache(domain) {
+    if (!domain) return;
+    try {
+        localStorage.removeItem(SSL_CERT_CACHE_PREFIX + domain.toLowerCase());
+    } catch (error) {
+        console.warn('SSL 证书缓存清理失败:', error.message);
+    }
+}
+
+function refreshSSLCertificate() {
+    const domainInput = document.getElementById('domain-input');
+    const domain = domainInput ? domainInput.value.trim() : '';
+    if (!domain || domain.startsWith('*.')) return;
+
+    clearSSLCertCache(domain);
+    AppState.sslCertInfo = null;
+    AppState.certDaysRemaining = null;
+    checkSSLCertificate(domain, true);
+}
+
+function displaySSLCertInfo(certInfo) {
+    const certInfoBox = document.getElementById('ssl-cert-info');
+    const certIssuerEl = document.getElementById('cert-issuer');
+    const certExpiryEl = document.getElementById('cert-expiry');
+    const certDaysEl = document.getElementById('cert-days');
+
+    AppState.sslCertInfo = certInfo;
+    AppState.certDaysRemaining = certInfo.daysRemaining;
+    certIssuerEl.textContent = certInfo.issuer;
+    certExpiryEl.textContent = certInfo.expiryDate;
+    certDaysEl.textContent = `${certInfo.daysRemaining} 天`;
+
+    if (certInfo.daysRemaining < 7) {
+        certDaysEl.className = 'cert-value cert-days cert-danger';
+    } else if (certInfo.daysRemaining < 30) {
+        certDaysEl.className = 'cert-value cert-days cert-warning';
+    } else {
+        certDaysEl.className = 'cert-value cert-days cert-success';
+    }
+    certInfoBox.style.display = 'block';
+}
+
+async function checkSSLCertificate(domain, forceRefresh = false) {
     // 通配符域名不检测
     if (domain.startsWith('*.')) {
         return;
@@ -1493,6 +1689,13 @@ async function checkSSLCertificate(domain) {
     const certDaysEl = document.getElementById('cert-days');
 
     try {
+        const cachedCertInfo = forceRefresh ? null : getCachedSSLCertInfo(domain);
+        if (cachedCertInfo) {
+            console.log('使用浏览器缓存的 SSL 证书信息:', domain);
+            displaySSLCertInfo(cachedCertInfo);
+            return;
+        }
+
         // 显示加载状态
         certInfoBox.style.display = 'block';
         certIssuerEl.textContent = '检测中...';
@@ -1502,27 +1705,25 @@ async function checkSSLCertificate(domain) {
 
         console.log('正在检测域名:', domain);
 
-        // 使用竞速策略：同时请求多个API，谁快用谁
-        const certInfo = await checkSSLWithRace(domain);
+        // 同一域名在请求期间共享一个 Promise，避免重复并发。
+        const normalizedDomain = domain.toLowerCase();
+        let certInfoPromise = sslCertChecksInFlight.get(normalizedDomain);
+        if (!certInfoPromise) {
+            certInfoPromise = checkSSLWithRace(domain).finally(() => {
+                sslCertChecksInFlight.delete(normalizedDomain);
+            });
+            sslCertChecksInFlight.set(normalizedDomain, certInfoPromise);
+        }
+        const certInfo = await certInfoPromise;
 
         if (certInfo) {
-            AppState.sslCertInfo = certInfo;
-            AppState.certDaysRemaining = certInfo.daysRemaining;
+            cacheSSLCertInfo(domain, certInfo);
 
-            certIssuerEl.textContent = certInfo.issuer;
-            certExpiryEl.textContent = certInfo.expiryDate;
-            certDaysEl.textContent = `${certInfo.daysRemaining} 天`;
-
-            // 根据剩余天数设置颜色
-            if (certInfo.daysRemaining < 7) {
-                certDaysEl.className = 'cert-value cert-days cert-danger';
-            } else if (certInfo.daysRemaining < 30) {
-                certDaysEl.className = 'cert-value cert-days cert-warning';
-            } else {
-                certDaysEl.className = 'cert-value cert-days cert-success';
+            // 请求返回时域名可能已经被用户改掉，避免显示上一个域名的结果。
+            const currentDomain = document.getElementById('domain-input').value.trim().toLowerCase();
+            if (currentDomain === domain.toLowerCase()) {
+                displaySSLCertInfo(certInfo);
             }
-
-            certInfoBox.style.display = 'block';
         } else {
             // 未检测到证书
             certInfoBox.style.display = 'none';
@@ -1540,50 +1741,41 @@ async function checkSSLCertificate(domain) {
 // 竞速策略：同时请求多个API，使用最快的响应
 async function checkSSLWithRace(domain) {
     const timeout = 8000; // 8秒超时
+    const controller = new AbortController();
 
-    // 创建超时Promise
+    let timeoutId;
     const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('请求超时')), timeout);
+        timeoutId = setTimeout(() => {
+            controller.abort();
+            reject(new Error('请求超时'));
+        }, timeout);
     });
 
-    // 同时发起多个请求，谁先成功就用谁
+    // Promise.any 只接受第一个成功结果，某个检测源先失败不会拖住其他结果。
     const promises = [
-        checkSSLViaMySSL(domain),           // 国内服务，速度快
-        checkSSLViaChinazSSL(domain),       // 站长工具SSL检测
-        checkSSLViaTransparencyLog(domain), // crt.sh（国外，可能慢）
+        checkSSLViaMySSL(domain, controller.signal),
+        checkSSLViaChinazSSL(domain, controller.signal),
+        checkSSLViaTransparencyLog(domain, controller.signal)
     ];
 
     try {
-        // Promise.race：返回第一个成功的结果
-        const result = await Promise.race([
-            Promise.race(promises.map(p => p.catch(e => {
-                console.log('某个API失败:', e.message);
-                return null;
-            }))),
-            timeoutPromise
-        ]);
-
-        // 如果第一个结果为null，尝试等待其他结果
-        if (result) {
-            return result;
-        }
-
-        // 等待所有结果
-        const results = await Promise.allSettled(promises);
-        const successResult = results.find(r => r.status === 'fulfilled' && r.value);
-        return successResult ? successResult.value : null;
+        return await Promise.race([Promise.any(promises), timeoutPromise]);
     } catch (error) {
         console.log('所有API都失败了:', error.message);
         return null;
+    } finally {
+        clearTimeout(timeoutId);
+        controller.abort();
     }
 }
 
 // 方案1：使用 MySSL API（国内，速度快）
-async function checkSSLViaMySSL(domain) {
+async function checkSSLViaMySSL(domain, signal) {
     try {
         // MySSL 提供免费的SSL检测API（国内访问快）
         const response = await fetch(`https://myssl.com/api/v1/tools/cert_decode?domain=${encodeURIComponent(domain)}`, {
             method: 'GET',
+            signal,
             headers: {
                 'Accept': 'application/json'
             }
@@ -1603,6 +1795,7 @@ async function checkSSLViaMySSL(domain) {
 
             return {
                 issuer: cert.issuer_cn || cert.issuer_o || 'Unknown CA',
+                expiryTimestamp: expiryDate.getTime(),
                 expiryDate: expiryDate.toLocaleDateString('zh-CN', {
                     year: 'numeric',
                     month: '2-digit',
@@ -1620,11 +1813,12 @@ async function checkSSLViaMySSL(domain) {
 }
 
 // 方案2：使用站长工具SSL检测（国内，速度较快）
-async function checkSSLViaChinazSSL(domain) {
+async function checkSSLViaChinazSSL(domain, signal) {
     try {
         // 使用站长工具的SSL查询接口
         const response = await fetch(`https://sslapi.chinaz.com/ChinazAPI/SSLInfo?domain=${encodeURIComponent(domain)}`, {
             method: 'GET',
+            signal,
             headers: {
                 'Accept': 'application/json'
             }
@@ -1644,6 +1838,7 @@ async function checkSSLViaChinazSSL(domain) {
 
             return {
                 issuer: cert.IssuerName || 'Unknown CA',
+                expiryTimestamp: expiryDate.getTime(),
                 expiryDate: expiryDate.toLocaleDateString('zh-CN', {
                     year: 'numeric',
                     month: '2-digit',
@@ -1661,11 +1856,12 @@ async function checkSSLViaChinazSSL(domain) {
 }
 
 // 方案3：通过证书透明度日志检测SSL证书（原方案，保留作为后备）
-async function checkSSLViaTransparencyLog(domain) {
+async function checkSSLViaTransparencyLog(domain, signal) {
     try {
         // 使用 crt.sh API 查询证书透明度日志
         const response = await fetch(`https://crt.sh/?q=${encodeURIComponent(domain)}&output=json&exclude=expired`, {
             method: 'GET',
+            signal,
             headers: {
                 'Accept': 'application/json'
             }
@@ -1717,6 +1913,7 @@ async function checkSSLViaTransparencyLog(domain) {
 
         return {
             issuer: issuer,
+            expiryTimestamp: expiryDate.getTime(),
             expiryDate: expiryDate.toLocaleDateString('zh-CN', {
                 year: 'numeric',
                 month: '2-digit',

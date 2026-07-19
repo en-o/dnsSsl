@@ -40,12 +40,28 @@
 
     <script>
         function clearCache() {
-            localStorage.removeItem('acme_account_key_letsencrypt');
-            localStorage.removeItem('acme_account_url_letsencrypt');
-            localStorage.removeItem('acme_account_key_zerossl');
-            localStorage.removeItem('acme_account_url_zerossl');
-            
-            document.getElementById('result').innerHTML = '<div class="result success">✓ ACME 缓存已清除！请返回主页重新申请证书。</div>';
+            const prefixes = ['acme_account_key_', 'acme_account_url_'];
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && prefixes.some(prefix => key.startsWith(prefix))) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+            const sessionKeysToRemove = [];
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                if (key && prefixes.some(prefix => key.startsWith(prefix))) {
+                    sessionKeysToRemove.push(key);
+                }
+            }
+            sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+            localStorage.removeItem('browser_fingerprint');
+
+            const result = document.getElementById('result');
+            result.className = 'result success';
+            result.textContent = `✓ 已清除 ${keysToRemove.length + sessionKeysToRemove.length} 条 ACME 账户缓存，请返回主页重新申请。`;
         }
     </script>
 </body>

@@ -108,9 +108,7 @@ function generateRealisticCertificateContent(fileName, domain) {
         }
     }
 
-    // 如果没有真实证书，生成模拟证书
-    console.log('[Certificate] 生成模拟证书（演示用）');
-    return generateMockCertificateContent(fileName, domain);
+    throw new Error('真实证书尚未签发，已禁止生成或下载模拟证书');
 }
 
 // ==================== 生成模拟证书内容 ====================
@@ -351,17 +349,7 @@ async function downloadAllCertificates() {
 ${selectedFormat.files.map(f => `- ${generateDomainBasedFileName(f.name, domain)}: ${f.description}`).join('\n')}
 
 ⚠️  重要提示:
-这是一个演示性质的SSL证书申请助手。
-实际生产环境中，请使用以下工具向 Let's Encrypt 申请真实证书：
-
-1. Certbot (推荐)
-   certbot certonly --webserver -d ${cleanDomain}
-
-2. acme.sh
-   acme.sh --issue -d ${cleanDomain} --webroot /var/www/html
-
-3. 其他 ACME 客户端
-   https://letsencrypt.org/docs/client-options/
+本压缩包包含真实证书私钥，请妥善保管，不要通过聊天工具、邮件或公开网盘传输。
 
 安装指南:
 ${selectedFormat.installation_guide}

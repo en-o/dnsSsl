@@ -463,6 +463,17 @@ body {
     position: relative;
 }
 
+.verification-option.option-disabled {
+    opacity: 0.55;
+}
+
+.verification-option.option-disabled label,
+.verification-option.option-disabled label:hover {
+    cursor: not-allowed;
+    border-color: var(--border-color);
+    box-shadow: none;
+}
+
 .verification-option input[type="radio"] {
     position: absolute;
     opacity: 0;
@@ -1635,6 +1646,33 @@ body {
     font-size: 1.0625rem;
     font-weight: 600;
     flex: 1;
+}
+
+.cert-refresh-btn {
+    border: 1px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-secondary);
+    padding: 0.25rem 0.625rem;
+    cursor: pointer;
+    font: inherit;
+}
+
+.cert-refresh-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+
+.tos-consent {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.tos-consent input {
+    margin-top: 0.2rem;
 }
 
 .cert-info-badge {

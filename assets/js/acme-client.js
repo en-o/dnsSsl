@@ -1,6 +1,6 @@
 
 // ==================== ACME 客户端库 ====================
-// 实现 ACME v2 协议，支持 Let's Encrypt 和 ZeroSSL
+// 实现 ACME v2 协议，支持 Let's Encrypt
 // 使用 forge.js 处理加密操作
 
 /**
@@ -55,19 +55,21 @@ function simpleHashForFingerprint(str) {
 
 /**
  * ACME 客户端
- * 用于向 Let's Encrypt 或 ZeroSSL 申请 SSL 证书
+ * 用于向 Let's Encrypt 申请 SSL 证书
  */
 class AcmeClient {
     constructor(caProvider = 'letsencrypt') {
         // ACME 服务器目录
         this.directoryUrls = {
             'letsencrypt': 'https://acme-v02.api.letsencrypt.org/directory',
-            'letsencrypt-staging': 'https://acme-staging-v02.api.letsencrypt.org/directory',
-            'zerossl': 'https://acme.zerossl.com/v2/DV90/directory'
+            'letsencrypt-staging': 'https://acme-staging-v02.api.letsencrypt.org/directory'
         };
 
         this.caProvider = caProvider;
         this.directoryUrl = this.directoryUrls[caProvider];
+        if (!this.directoryUrl) {
+            throw new Error(`暂不支持的 ACME CA: ${caProvider}`);
+        }
         this.directory = null;
         this.accountKeyPair = null; // forge keypair
         this.accountUrl = null;
@@ -76,6 +78,32 @@ class AcmeClient {
         // 生成浏览器指纹，用于账户隔离
         this.browserFingerprint = generateBrowserFingerprint();
         console.log('[ACME] 使用浏览器指纹:', this.browserFingerprint);
+    }
+
+    async fetchWithTimeout(url, options = {}, timeout = 15000) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        try {
+            return await fetch(url, { ...options, signal: controller.signal });
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error(`请求超时（${Math.round(timeout / 1000)} 秒）`);
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    getRetryDelay(response, fallbackMs) {
+        const retryAfter = response.headers.get('Retry-After');
+        if (!retryAfter) return fallbackMs;
+
+        const seconds = Number(retryAfter);
+        const delay = Number.isFinite(seconds)
+            ? seconds * 1000
+            : new Date(retryAfter).getTime() - Date.now();
+        return Math.min(Math.max(delay, 0), 10000);
     }
 
     /**
@@ -93,7 +121,7 @@ class AcmeClient {
 
         // 获取 ACME 目录
         try {
-            const response = await fetch(this.directoryUrl);
+            const response = await this.fetchWithTimeout(this.directoryUrl);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -120,7 +148,7 @@ class AcmeClient {
         }
 
         try {
-            const response = await fetch(this.directory.newNonce, {
+            const response = await this.fetchWithTimeout(this.directory.newNonce, {
                 method: 'HEAD'
             });
 
@@ -138,10 +166,12 @@ class AcmeClient {
     async loadOrCreateAccountKey() {
         // 使用浏览器指纹作为key的一部分，隔离不同用户的账户
         const storageKey = `acme_account_key_${this.caProvider}_${this.browserFingerprint}`;
-        const savedKey = localStorage.getItem(storageKey);
+        // 账户私钥只在当前标签页会话中保留，避免长期明文落盘。
+        localStorage.removeItem(storageKey);
+        const savedKey = sessionStorage.getItem(storageKey);
 
         if (savedKey) {
-            console.log('[ACME] 从 localStorage 加载账户密钥（指纹:', this.browserFingerprint, ')');
+            console.log('[ACME] 从当前会话加载账户密钥（指纹:', this.browserFingerprint, ')');
             try {
                 const privateKeyPem = savedKey;
                 this.accountKeyPair = {
@@ -153,7 +183,7 @@ class AcmeClient {
                 };
             } catch (error) {
                 console.warn('[ACME] 加载账户密钥失败，将生成新密钥:', error);
-                localStorage.removeItem(storageKey);
+                sessionStorage.removeItem(storageKey);
                 await this.loadOrCreateAccountKey();
                 return;
             }
@@ -161,10 +191,10 @@ class AcmeClient {
             console.log('[ACME] 生成新的账户密钥对（2048位RSA）...');
             this.accountKeyPair = forge.pki.rsa.generateKeyPair({ bits: 2048, workers: -1 });
 
-            // 保存到 localStorage（使用指纹隔离）
+            // 只保存到 sessionStorage（使用指纹隔离）
             const privateKeyPem = forge.pki.privateKeyToPem(this.accountKeyPair.privateKey);
-            localStorage.setItem(storageKey, privateKeyPem);
-            console.log('[ACME] 账户密钥已保存到 localStorage（指纹:', this.browserFingerprint, ')');
+            sessionStorage.setItem(storageKey, privateKeyPem);
+            console.log('[ACME] 账户密钥已保存到当前会话（指纹:', this.browserFingerprint, ')');
         }
     }
 
@@ -321,11 +351,11 @@ class AcmeClient {
     /**
      * 发送 JWS 请求
      */
-    async sendJWS(url, payload) {
+    async sendJWS(url, payload, retryCount = 0) {
         const jws = await this.createJWS(url, payload);
 
         try {
-            const response = await fetch(url, {
+            const response = await this.fetchWithTimeout(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/jose+json'
@@ -359,6 +389,22 @@ class AcmeClient {
                 const errorType = responseData.type || '';
                 const errorDetail = responseData.detail || responseData.message || response.statusText;
                 const errorStatus = response.status;
+
+                // badNonce 是 ACME 常见的可恢复错误，使用响应中的新 nonce 重签名。
+                if (errorType.includes('badNonce') && retryCount < 2) {
+                    if (!newNonce) await this.getNonce();
+                    console.warn(`[ACME] nonce 已失效，正在重试 ${retryCount + 1}/2`);
+                    return this.sendJWS(url, payload, retryCount + 1);
+                }
+
+                // CA 短暂故障时按 Retry-After 或指数退避重试。
+                if ([500, 502, 503, 504].includes(errorStatus) && retryCount < 2) {
+                    const delay = this.getRetryDelay(response, 1000 * (2 ** retryCount));
+                    console.warn(`[ACME] CA 暂时不可用，${delay}ms 后重试 ${retryCount + 1}/2`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    if (!this.nonce) await this.getNonce();
+                    return this.sendJWS(url, payload, retryCount + 1);
+                }
 
                 console.log('[ACME 错误分析] errorType:', errorType);
                 console.log('[ACME 错误分析] errorDetail:', errorDetail);
@@ -406,7 +452,8 @@ class AcmeClient {
 
         // 检查是否已有账户（使用指纹隔离）
         const storageKey = `acme_account_url_${this.caProvider}_${this.browserFingerprint}`;
-        const savedAccountUrl = localStorage.getItem(storageKey);
+        localStorage.removeItem(storageKey);
+        const savedAccountUrl = sessionStorage.getItem(storageKey);
 
         if (savedAccountUrl) {
             this.accountUrl = savedAccountUrl;
@@ -425,8 +472,8 @@ class AcmeClient {
         const response = await this.sendJWS(this.directory.newAccount, payload);
         this.accountUrl = response.location;
 
-        // 保存账户 URL（使用指纹隔离）
-        localStorage.setItem(storageKey, this.accountUrl);
+        // 账户 URL 与私钥保持相同的会话生命周期
+        sessionStorage.setItem(storageKey, this.accountUrl);
 
         console.log('[ACME] 账户创建成功:', this.accountUrl);
         console.log('[ACME] 此账户仅供当前浏览器使用，不会与其他用户冲突');
@@ -540,8 +587,6 @@ class AcmeClient {
         console.log('[ACME] 开始轮询挑战状态...');
 
         for (let i = 0; i < maxAttempts; i++) {
-            await new Promise(resolve => setTimeout(resolve, interval));
-
             const response = await this.sendJWS(challengeUrl, '');
             const status = response.data.status;
 
@@ -553,6 +598,13 @@ class AcmeClient {
             } else if (status === 'invalid') {
                 console.error('[ACME] 挑战验证失败:', response.data.error);
                 throw new Error(`挑战验证失败: ${response.data.error?.detail || '未知错误'}`);
+            } else if (!['pending', 'processing'].includes(status)) {
+                throw new Error(`挑战状态异常: ${status || '未知'}`);
+            }
+
+            if (i < maxAttempts - 1) {
+                const delay = this.getRetryDelay(response, interval);
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
 
@@ -563,8 +615,8 @@ class AcmeClient {
      * 生成域名密钥对（用于 CSR）
      */
     generateDomainKeyPair() {
-        console.log('[ACME] 正在生成域名密钥对（4096位RSA）...');
-        const keyPair = forge.pki.rsa.generateKeyPair({ bits: 4096, workers: -1 });
+        console.log('[ACME] 正在生成域名密钥对（2048位 RSA）...');
+        const keyPair = forge.pki.rsa.generateKeyPair({ bits: 2048, workers: -1 });
         console.log('[ACME] 域名密钥对生成成功');
         return keyPair;
     }
@@ -623,8 +675,6 @@ class AcmeClient {
         console.log('[ACME] 开始轮询订单状态...');
 
         for (let i = 0; i < maxAttempts; i++) {
-            await new Promise(resolve => setTimeout(resolve, interval));
-
             const response = await this.sendJWS(orderUrl, '');
             const status = response.data.status;
 
@@ -636,6 +686,13 @@ class AcmeClient {
             } else if (status === 'invalid') {
                 console.error('[ACME] 订单失败:', response.data.error);
                 throw new Error(`订单失败: ${response.data.error?.detail || '未知错误'}`);
+            } else if (!['pending', 'ready', 'processing'].includes(status)) {
+                throw new Error(`订单状态异常: ${status || '未知'}`);
+            }
+
+            if (i < maxAttempts - 1) {
+                const delay = this.getRetryDelay(response, interval);
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
 

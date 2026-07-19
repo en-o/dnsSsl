@@ -132,140 +132,37 @@ async function verifyWebServer() {
     const shortContent = challengeContent.length > 20 ? challengeContent.substring(0, 20) + '...' : challengeContent;
     addLog('info', '预期内容: ' + shortContent);
 
-    addLog('info', '正在尝试访问验证文件...');
+    const acmeClient = AppState.acmeClient;
+    const challengeUrl = AppState.http01ChallengeUrl;
+    if (!acmeClient || !challengeUrl) {
+        throw new Error('ACME 订单或 HTTP-01 挑战已失效，请返回上一步重新获取');
+    }
 
     try {
-        // 尝试直接访问（可能会因为 CORS 失败）
-        let response;
-        let content;
-        let usedProxy = false;
+        addLog('info', '正在通知 CA 服务器执行 HTTP-01 验证...');
+        await acmeClient.triggerChallenge(challengeUrl);
+        addLog('success', '✓ 验证请求已发送到 CA');
+        addLog('info', '正在等待 CA 访问验证 URL（最多 90 秒）...');
+        await acmeClient.pollChallengeStatus(challengeUrl);
 
-        try {
-            addLog('info', '尝试直接访问...');
-            response = await fetch(verifyUrl, {
-                method: 'GET',
-                mode: 'cors',
-                cache: 'no-cache'
-            });
-
-            if (!response.ok) {
-                throw new Error('HTTP ' + response.status + ': ' + response.statusText);
-            }
-
-            content = await response.text();
-            addLog('success', '✓ 直接访问成功');
-        } catch (directError) {
-            // 直接访问失败，尝试使用 CORS 代理
-            if (directError.message.includes('Failed to fetch') || directError.message.includes('CORS') || directError.name === 'TypeError') {
-                addLog('warning', '⚠️ 直接访问受 CORS 限制，尝试使用代理...');
-
-                // 尝试多个 CORS 代理服务
-                const corsProxies = [
-                    'https://api.allorigins.win/raw?url=',
-                    'https://corsproxy.io/?',
-                    'https://api.codetabs.com/v1/proxy?quest='
-                ];
-
-                let proxySuccess = false;
-                for (let i = 0; i < corsProxies.length; i++) {
-                    try {
-                        const proxyUrl = corsProxies[i] + encodeURIComponent(verifyUrl);
-                        addLog('info', '尝试代理 ' + (i + 1) + '/' + corsProxies.length + '...');
-
-                        const proxyResponse = await fetch(proxyUrl, {
-                            method: 'GET',
-                            cache: 'no-cache',
-                            timeout: 5000
-                        });
-
-                        if (proxyResponse.ok) {
-                            content = await proxyResponse.text();
-                            addLog('success', '✓ 通过代理访问成功');
-                            usedProxy = true;
-                            proxySuccess = true;
-                            break;
-                        }
-                    } catch (proxyError) {
-                        addLog('info', '代理 ' + (i + 1) + ' 失败，继续尝试...');
-                    }
-                }
-
-                if (!proxySuccess) {
-                    throw new Error('CORS_PROXY_FAILED');
-                }
-            } else {
-                throw directError;
-            }
-        }
-
-        const trimmedContent = content.trim();
-
-        addLog('success', '✓ 成功获取验证文件内容');
-        addLog('info', '获取到的内容: ' + (trimmedContent.length > 30 ? trimmedContent.substring(0, 30) + '...' : trimmedContent));
-
-        // 验证内容是否匹配
-        if (trimmedContent === challengeContent.trim()) {
-            addLog('success', '✓ 验证内容匹配');
-            addLog('success', '✓ Web 服务器验证通过！');
-            if (usedProxy) {
-                addLog('info', '');
-                addLog('info', '💡 提示：验证通过代理完成，实际 Let\'s Encrypt 访问时不会有 CORS 限制');
-            }
-            showVerificationStatus('success', '验证成功！', 'Web 服务器配置正确，可以继续下一步');
-            showContinueButton();
-        } else {
-            addLog('error', '✗ 验证内容不匹配');
-            addLog('info', '预期内容: ' + challengeContent);
-            addLog('info', '实际内容: ' + trimmedContent);
-            throw new Error('验证内容不匹配');
-        }
+        AppState.acmeValidatedChallengeUrl = challengeUrl;
+        addLog('success', '✓ CA 已确认验证文件内容匹配');
+        addLog('success', '✓ Web 服务器验证通过！');
+        showVerificationStatus('success', '验证成功！', 'CA 已完成 HTTP-01 验证，可以继续下一步');
+        showContinueButton();
     } catch (error) {
-        // 处理所有代理都失败的情况
-        if (error.message === 'CORS_PROXY_FAILED') {
-            addLog('error', '✗ 所有代理服务都无法访问');
-            addLog('info', '');
-            addLog('warning', '⚠️ 可能的原因：');
-            addLog('info', '1. 验证 URL 无法访问（域名解析、服务器配置问题）');
-            addLog('info', '2. 代理服务暂时不可用');
-            addLog('info', '3. 网络连接问题');
-            addLog('info', '');
-            addLog('info', '🔍 请手动验证以下 URL：');
-            addLog('info', verifyUrl);
-            addLog('info', '');
-            addLog('info', '验证方法：');
-            addLog('info', '1. 浏览器新标签页打开上述 URL');
-            addLog('info', '   • 如果下载文件或显示内容 → 配置正确 ✅');
-            addLog('info', '   • 如果跳转到 404/HTTPS → 配置有误 ❌');
-            addLog('info', '');
-            addLog('info', '2. 或使用命令行：curl -v ' + verifyUrl);
-            addLog('info', '');
-            addLog('error', '常见配置问题：');
-            addLog('info', '• root 路径不对（应该和主站 root 一致）');
-            addLog('info', '• HTTP 被重定向到 HTTPS（需要用 ^~ 优先匹配）');
-            addLog('info', '• 验证文件不存在或权限不足');
-            addLog('info', '');
-            addLog('info', '💡 排查命令：');
-            addLog('info', '1. nginx -t && nginx -s reload');
-            addLog('info', '2. ls -la /path/to/.well-known/acme-challenge/');
-            addLog('info', '3. curl -v ' + verifyUrl);
-
-            showVerificationStatus('error', '验证失败', '无法访问验证 URL，请检查服务器配置和网络连接');
-            throw new Error('无法访问验证 URL');
-        } else if (error.message.includes('验证内容不匹配')) {
-            showVerificationStatus('error', '验证失败', '验证文件内容不匹配，请检查文件内容是否正确');
-            throw error;
-        } else {
-            addLog('error', '✗ 验证失败: ' + error.message);
-            addLog('info', '');
-            addLog('warning', '请确认：');
-            addLog('info', '1. 域名解析正确（ping ' + domain + '）');
-            addLog('info', '2. Web 服务器正在运行');
-            addLog('info', '3. 验证文件已正确放置');
-            addLog('info', '4. 防火墙允许 HTTP (80端口) 访问');
-            addLog('info', '5. Nginx 配置已生效（nginx -s reload）');
-            showVerificationStatus('error', '验证失败', error.message);
-            throw error;
+        AppState.acmeValidatedChallengeUrl = null;
+        addLog('error', '✗ CA 验证失败: ' + error.message);
+        addLog('info', '验证 URL: ' + verifyUrl);
+        if (error.message.includes('挑战验证失败') || error.message.includes('挑战状态异常')) {
+            if (typeof invalidateActiveAcmeOrder === 'function') {
+                invalidateActiveAcmeOrder();
+            }
+            addLog('warning', '当前挑战已进入不可重试状态，请返回上一步获取新的验证文件。');
         }
+        addLog('warning', '请确认 DNS、80 端口、Nginx root 和验证文件内容正确。');
+        showVerificationStatus('error', '验证失败', error.message);
+        throw error;
     }
 }
 
@@ -421,7 +318,7 @@ function showVerificationStatus(type, title, message) {
             colorClass = '';
     }
 
-    statusContainer.innerHTML = '<div class="' + colorClass + '">' + icon + '<h3>' + title + '</h3><p>' + message + '</p></div>';
+    statusContainer.innerHTML = '<div class="' + colorClass + '">' + icon + '<h3>' + escapeHtml(title) + '</h3><p>' + escapeHtml(message) + '</p></div>';
 }
 
 // 添加日志
@@ -448,7 +345,16 @@ function addLog(type, message) {
             icon = 'ℹ';
     }
 
-    logEntry.innerHTML = '<span class="log-time">[' + timestamp + ']</span><span class="log-icon">' + icon + '</span><span class="log-message">' + message + '</span>';
+    const timeEl = document.createElement('span');
+    timeEl.className = 'log-time';
+    timeEl.textContent = '[' + timestamp + ']';
+    const iconEl = document.createElement('span');
+    iconEl.className = 'log-icon';
+    iconEl.textContent = icon;
+    const messageEl = document.createElement('span');
+    messageEl.className = 'log-message';
+    messageEl.textContent = message;
+    logEntry.append(timeEl, iconEl, messageEl);
 
     logContainer.appendChild(logEntry);
     logContainer.scrollTop = logContainer.scrollHeight;
@@ -561,7 +467,9 @@ async function requestRealCertificateInStep5() {
         const logEl = document.getElementById('cert-request-log');
         if (logEl) {
             const timestamp = new Date().toLocaleTimeString();
-            logEl.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            const entry = document.createElement('div');
+            entry.textContent = `[${timestamp}] ${message}`;
+            logEl.appendChild(entry);
             logEl.scrollTop = logEl.scrollHeight;
         }
         console.log('[ACME]', message);
@@ -637,18 +545,21 @@ async function requestRealCertificateInStep5() {
             challengeUrl = challenge.url;
         }
 
-        // 步骤 5: 触发挑战验证
-        log('正在触发挑战验证...');
-        await acmeClient.triggerChallenge(challengeUrl);
-        log('✓ 验证请求已发送到 CA 服务器');
-
-        // 步骤 6: 轮询挑战状态
-        log('正在等待 CA 服务器验证（最多等待90秒）...');
-        await acmeClient.pollChallengeStatus(challengeUrl);
-        log('✓ 域名验证成功！');
+        // 步骤 5-6: 当前挑战若尚未由 CA 验证，再触发并轮询
+        if (AppState.acmeValidatedChallengeUrl === challengeUrl) {
+            log('✓ 复用上一步已通过的 CA 验证');
+        } else {
+            log('正在触发挑战验证...');
+            await acmeClient.triggerChallenge(challengeUrl);
+            log('✓ 验证请求已发送到 CA 服务器');
+            log('正在等待 CA 服务器验证（最多等待90秒）...');
+            await acmeClient.pollChallengeStatus(challengeUrl);
+            AppState.acmeValidatedChallengeUrl = challengeUrl;
+            log('✓ 域名验证成功！');
+        }
 
         // 步骤 7: 生成域名密钥对
-        log('正在生成域名密钥对（4096位RSA）...');
+        log('正在生成域名密钥对（2048位 RSA）...');
         const domainKeyPair = acmeClient.generateDomainKeyPair();
         log('✓ 域名密钥对生成完成');
 
@@ -688,6 +599,12 @@ async function requestRealCertificateInStep5() {
             provider: caProvider,
             issuedAt: new Date().toISOString()
         };
+        if (typeof clearSSLCertCache === 'function') {
+            clearSSLCertCache(domain);
+        }
+        if (typeof clearActiveAcmeOrder === 'function') {
+            clearActiveAcmeOrder();
+        }
 
         log('========================================');
         log('🎉 证书申请成功！');

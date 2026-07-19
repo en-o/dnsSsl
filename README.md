@@ -1,8 +1,8 @@
 # DNS SSL 证书申请助手
 
-> 免费 SSL 证书申请引导工具 - 支持 Let's Encrypt 和 ZeroSSL
+> 免费 SSL 证书申请引导工具 - 支持 Let's Encrypt
 
-这是一个基于 Jekyll 构建的静态网站，用于指导用户申请和安装免费 SSL 证书。项目提供清晰的步骤引导，支持多种验证方式和证书格式，可直接部署到 GitHub Pages。
+这是一个基于 Jekyll 构建的静态网站，用于指导用户通过 Let's Encrypt 申请和安装免费 SSL 证书。项目提供清晰的步骤引导，支持多种验证方式和证书格式，可直接部署到 GitHub Pages。
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Jekyll](https://img.shields.io/badge/Jekyll-4.3.3-red.svg)
@@ -13,7 +13,7 @@
 - 📝 **5 步引导流程**：从域名输入到证书安装的完整引导
 - 🔐 **双重验证方式**：支持 Web 服务器验证（HTTP-01）和 DNS 解析验证（DNS-01）
 - 📦 **多种证书格式**：支持 Nginx、Apache、Tomcat、IIS、JKS 等格式
-- 🌐 **ACME CA 支持**：支持 Let's Encrypt、ZeroSSL、Buypass、Google Trust Services
+- 🌐 **ACME CA 支持**：支持 Let's Encrypt 生产环境和 Staging 测试环境
 - 📱 **响应式设计**：完美适配桌面端和移动端
 - 🎨 **现代化 UI**：美观的界面设计和流畅的交互动画
 - 🚀 **零后端**：纯静态站点，无需服务器，可直接部署到 GitHub Pages
@@ -263,7 +263,6 @@ dnsSsl/
 ## 🙏 致谢
 
 - [Let's Encrypt](https://letsencrypt.org/) - 免费的 SSL 证书服务
-- [ZeroSSL](https://zerossl.com/) - 另一个优秀的免费证书提供商
 - [Jekyll](https://jekyllrb.com/) - 强大的静态站点生成器
 - [GitHub Pages](https://pages.github.com/) - 免费的静态站点托管
 

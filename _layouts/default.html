@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://acme-v02.api.letsencrypt.org https://acme-staging-v02.api.letsencrypt.org https://myssl.com https://sslapi.chinaz.com https://crt.sh https://dns.alidns.com https://doh.pub https://cloudflare-dns.com https://dns.google; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none';">
 
     <title>{% if page.title %}{{ page.title }} - {% endif %}{{ site.title }}</title>
     <meta name="description" content="{{ page.description | default: site.description }}">
@@ -50,39 +53,21 @@
                 <p>&copy; {{ 'now' | date: "%Y" }} {{ site.title }}. 所有权利保留。</p>
                 <p class="footer-links">
                     <a href="https://letsencrypt.org/" target="_blank" rel="noopener">Let's Encrypt</a> |
-                    <a href="https://zerossl.com/" target="_blank" rel="noopener">ZeroSSL</a> |
                     <a href="https://github.com/en-o/dnsSsl" target="_blank" rel="noopener">GitHub</a>
                 </p>
-                <p class="footer-note">本工具仅提供操作指引，不存储任何用户数据</p>
-                <p style="font-size: 0.85em; color: #999;">
-                    <span id="busuanzi_container_site_pv">访问 <span id="busuanzi_value_site_pv"></span></span>
-                    <span style="margin: 0 8px;">·</span>
-                    <span id="busuanzi_container_site_uv">访客 <span id="busuanzi_value_site_uv"></span></span>
-                </p>
+                <p class="footer-note">申请数据在本地浏览器中处理；账户密钥仅保留于当前会话，域名历史和证书查询缓存保存在本浏览器。</p>
             </div>
         </footer>
     </div>
 
     <!-- Scripts -->
     <!-- JSZip 库用于证书文件打包 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <!-- Forge.js 库用于加密操作和 CSR 生成 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js" integrity="sha512-95iy0RZIbw3H/FgfAj2wnCQJlzFQ+eaSfUeV/l8WVyGHKSRMzm3M/O+85j9ba/HFphkijrCTDjcuDX0BL2lthA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="{{ '/assets/js/acme-client.js' | relative_url }}"></script>
-    <script src="{{ '/assets/js/acme-integration.js' | relative_url }}"></script>
     <script src="{{ '/assets/js/main.js' | relative_url }}"></script>
     <script src="{{ '/assets/js/certificate.js' | relative_url }}"></script>
     <script src="{{ '/assets/js/verification.js' | relative_url }}"></script>
-    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
-    <script>
-        var _hmt = _hmt || [];
-        (function() {
-            var hm = document.createElement("script");
-            hm.src = "https://hm.baidu.com/hm.js?f54f5c0c242284e2aa6a2bac888c08fe";
-            var s = document.getElementsByTagName("script")[0];
-            s.parentNode.insertBefore(hm, s);
-        })();
-    </script>
-
 </body>
 </html>

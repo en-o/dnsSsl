@@ -1,7 +1,7 @@
 ---
 layout: default
 title: 首页
-description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
+description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt
 ---
 
 <div class="wizard-container">
@@ -46,6 +46,7 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                             <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                         <span class="cert-info-title">SSL证书信息</span>
+                        <button type="button" class="cert-refresh-btn" onclick="refreshSSLCertificate()" title="忽略缓存并重新检测">刷新</button>
                     </div>
                     <div class="cert-info-content">
                         <div class="cert-info-item">
@@ -62,7 +63,7 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                         </div>
                     </div>
                     <div class="cert-info-note">
-                        💡 提示：证书信息来自多个检测源（MySSL、站长工具、crt.sh），自动选择最快的响应。
+                        💡 提示：证书信息会缓存到浏览器，并在证书过期后自动重新检测。
                     </div>
                 </div>
             </div>
@@ -72,14 +73,16 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                 <select id="acme-provider" class="form-select">
                     <option value="letsencrypt" selected>Let's Encrypt（生产环境）</option>
                     <option value="letsencrypt-staging">Let's Encrypt Staging（测试环境 - 推荐用于学习）</option>
-                    <option value="zerossl">ZeroSSL</option>
-                    <option value="buypass">Buypass</option>
-                    <option value="google">Google Trust Services</option>
                 </select>
                 <p class="input-hint">
                     <strong>测试建议：</strong>首次使用请选择 "Let's Encrypt Staging"，避免触发速率限制<br>
-                    <span style="color: #ef4444;">⚠️ 生产环境每个域名每周最多申请5次，超过限制需等待7天</span>
+                    <span style="color: #ef4444;">⚠️ 生产环境存在多类速率限制，请以 CA 返回的错误详情和解除时间为准</span>
                 </p>
+                <label class="tos-consent">
+                    <input type="checkbox" id="tos-agreed">
+                    <span>我已阅读并同意 <a href="https://letsencrypt.org/repository/" target="_blank" rel="noopener">Let's Encrypt 服务条款</a></span>
+                </label>
+                <p class="error-message" id="tos-error" style="display: none;"></p>
             </div>
 
             <div class="ca-info-box">
@@ -96,7 +99,7 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                 <h4 style="color: #92400e;">📋 Staging 环境说明</h4>
                 <p style="color: #78350f; margin-bottom: 8px;"><strong>Staging 环境（测试环境）用途：</strong></p>
                 <ul style="color: #78350f;">
-                    <li><strong>学习和测试：</strong>无速率限制，可以无限次测试</li>
+                    <li><strong>学习和测试：</strong>速率限制更宽松，适合反复调试</li>
                     <li><strong>流程完全相同：</strong>与生产环境的申请流程100%一致</li>
                     <li><strong>证书不受信任：</strong>浏览器会显示"不安全"（这是正常的）</li>
                     <li><strong>切换简单：</strong>测试成功后，切换到生产环境即可获得真实证书</li>
@@ -248,9 +251,9 @@ description: 免费 SSL 证书申请助手 - 支持 Let's Encrypt 和 ZeroSSL
                 </svg>
                 <div class="info-content">
                     <strong>关于验证：</strong>
-                    <p><strong>Web 服务器验证：</strong>系统会尝试通过 HTTP 访问验证文件。</p>
+                    <p><strong>Web 服务器验证：</strong>系统会通知 CA 服务器通过 HTTP 访问验证文件。</p>
                     <p><strong>DNS 验证：</strong>系统会查询 DNS TXT 记录（使用公共 DNS 服务器）。</p>
-                    <p class="note">注意：由于浏览器的 CORS 限制，HTTP 验证可能无法直接执行。DNS 验证可通过 DoH (DNS over HTTPS) 实现。</p>
+                    <p class="note">注意：HTTP-01 结果以 CA 服务器返回的挑战状态为准，不依赖浏览器跨域访问或公共代理。</p>
                     <p class="note">确保权限<code> chmod -R 755 /.well-known/acme-challenge/</code></p>
                 </div>
             </div>
